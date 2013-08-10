@@ -400,7 +400,7 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 	int colmask = (_mm_movemask_ps(m0.m) | (_mm_movemask_ps(m1.m) << 4));
 
 	// check if we can hit an in face
-	if((colmask & ~outmask) == 0)
+	if((!start_inside) && (colmask & ~outmask) == 0)
 		return -1.0f;
 	
 	// get abs velocity
