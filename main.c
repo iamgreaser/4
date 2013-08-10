@@ -512,12 +512,10 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
 {
 	// trace against this box
-	v4f_t rb;
-	rb.m = p->m;
 	int ins;
 	float d = (box->op == SHP_PAIR && box_in(box, p)
 		? 0.0f
-		: box_crosses(box, &rb, v, &ins));
+		: box_crosses(box, p, v, &ins));
 	int doret = 0;
 
 	if(d >= 0.0f && d <= md)
@@ -526,29 +524,24 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 		{
 			case SHP_PAIR: {
 				// find nearest of the two
-				v4f_t r0, r1;
 				int ins0, ins1;
-				r0.m = p->m;
-				r1.m = p->m;
 
 				box_t *retbox0 = NULL;
-				float d0 = trace_box(box->c[0], &r0, v, color, &retbox0, &ins0, md);
+				float d0 = trace_box(box->c[0], p, v, color, &retbox0, &ins0, md);
 				if(d0 > 0.0f && d0 <= md)
 				{
 					doret = 1;
 					*retbox = retbox0;
-					p->m = r0.m;
 					if(inside != NULL) *inside = ins0;
 					md = d0;
 				}
 
 				box_t *retbox1 = NULL;
-				float d1 = trace_box(box->c[1], &r1, v, color, &retbox1, &ins1, md);
+				float d1 = trace_box(box->c[1], p, v, color, &retbox1, &ins1, md);
 				if(d1 > 0.0f && d1 <= md)
 				{
 					doret = 1;
 					*retbox = retbox1;
-					p->m = r1.m;
 					if(inside != NULL) *inside = ins1;
 					md = d1;
 				}
@@ -560,8 +553,6 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 					md = d;
 					doret = 1;
 					if(inside != NULL) *inside = ins;
-					p->m = _mm_add_ps(p->m, _mm_mul_ps(
-							v->m, _mm_set1_ps(d)));
 					*retbox = box;
 				}
 				break;
@@ -593,26 +584,23 @@ uint32_t trace_pixel(float sx, float sy)
 	box_t *box = NULL;
 	p.m = cam.o.m;
 	int inside;
-	trace_box(root, &p, &f, &color, &box, &inside, 100.0f);
+	float d = trace_box(root, &p, &f, &color, &box, &inside, 100.0f);
 
-	if(box != NULL)
+	if(d >= 0.0f)
 	{
+		// move position
+		p.m = _mm_add_ps(p.m, _mm_mul_ps(
+			f.m, _mm_set1_ps(d)));
+
 		// calculate normal
 		v4f_t n;
 		box_normal(box, &p, &n, inside);
 
 		// calculate diffuse (against one point for now)
-		v4f_t l, dc;
-		//printf("%f %f %f %f\n", p.v.x, p.v.y, p.v.z, p.v.w);
-		l.m = cam.o.m;
-		l.m = _mm_sub_ps(p.m, l.m);
-		vec_norm(&l);
-		//printf("%f %f %f %f\n", l.v.x, l.v.y, l.v.z, l.v.w);
-		//printf("%f %f %f %f\n", n.v.x, n.v.y, n.v.z, n.v.w);
-		dc.m = _mm_mul_ps(l.m, n.m);
+		v4f_t dc;
+		dc.m = _mm_mul_ps(f.m, n.m);
 		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
-		if(diff < 0.0f) diff = -diff;
-		//printf("%f\n", diff);
+		//if(diff < 0.0f) diff = -diff;
 
 		// multiply diffuse
 		color.m = _mm_mul_ps(color.m, _mm_set1_ps(diff));
