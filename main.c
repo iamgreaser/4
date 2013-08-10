@@ -260,6 +260,32 @@ box_t *box_new(v4f_t *v0, v4f_t *v1, v4f_t *color, int op)
 	return b;
 }
 
+void box_print(box_t *b, int tabs)
+{
+	if(b == NULL)
+		return;
+	
+	int i;
+
+	for(i = 0; i < tabs; i++)
+		printf(" ");
+
+	printf("%i [%f %f %f %f] -> [%f %f %f %f]\n"
+		, b->depth
+		, b->v0.v.x
+		, b->v0.v.y
+		, b->v0.v.z
+		, b->v0.v.w
+		, b->v1.v.x
+		, b->v1.v.y
+		, b->v1.v.z
+		, b->v1.v.w);
+	
+	tabs += 2;
+	box_print(b->c[0], tabs);
+	box_print(b->c[1], tabs);
+}
+
 box_t *box_inject(box_t *r, box_t *b)
 {
 	// if this is all there is then return our box
@@ -345,8 +371,14 @@ void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 	vec_norm(n);
 }
 
-float box_crosses(box_t *box, v4f_t *p, v4f_t *v, int *inside)
+float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 {
+	// copy vi so we don't mutilate it
+	v4f_t vz;
+	v4f_t *v;
+	vz.m = vi->m;
+	v = &vz;
+
 	// determine what faces are "in" or "out"
 	v4f_t cmp0, cmp1;
 	cmp0.m = _mm_cmpge_ps(p->m, box->v0.m);
@@ -447,7 +479,7 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *v, int *inside)
 			return minv;
 		}
 
-		// add bit to mask
+		// mask this out
 		if(idx < 4)
 			m0.a[idx] = 0.0f;
 		else
@@ -697,6 +729,8 @@ void level_init(void)
 
 		root = box_inject(root, box_new(&v0, &v1, &color, SHP_ADD));
 	}
+
+	box_print(root, 0);
 }
 
 void render_main(void)
