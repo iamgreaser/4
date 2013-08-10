@@ -53,6 +53,10 @@ void refresh_fps(void)
 
 float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
 {
+	// just in case we have an empty level!
+	if(box == NULL)
+		return -1.0f;
+	
 	// trace against this box
 	int ins;
 	float d = (box->op == SHP_PAIR && box_in(box, p)
@@ -227,41 +231,9 @@ void cam_init(void)
 	mat_ident(&cam.m);
 }
 
-void level_init(void)
+void level_init(const char *fname)
 {
-	v4f_t clist[4];
-	clist[0].m = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f);
-	clist[1].m = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f);
-	clist[2].m = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f);
-	clist[3].m = _mm_set_ps(1.0f, 1.0f, 1.0f, 0.0f);
-	v4f_t v0, v1;
-	box_t **blist = malloc(sizeof(box_t *) * 100000);
-
-	int i;
-	int bcount = 0;
-
-	for(i = 0; i < 8; i++)
-	{
-		v0.m = _mm_set_ps(-10.0f, -10.0f, -10.0f, -10.0f);
-		v1.m = _mm_set_ps(10.0f, 10.0f, 10.0f, 10.0f);
-
-		float offs_f = i < 4 ? 3.0f : -3.0f;
-		__m128 offs = _mm_load_ss(&offs_f);
-		if(i&1) offs = _mm_shuffle_ps(offs, offs, 0x93);
-		if(i&2) offs = _mm_shuffle_ps(offs, offs, 0x4E);
-
-		v0.m = _mm_add_ps(v0.m, offs);
-		v1.m = _mm_add_ps(v1.m, offs);
-
-		blist[i] = box_new(&v0, &v1, &clist[i&3], SHP_ADD);
-		bcount++;
-	}
-
-	for(i = 0; i < bcount-1; i += 2, bcount++)
-		blist[bcount] = box_inject(blist[i], blist[i+1]);
-	
-	root = blist[bcount-1];
-	free(blist);
+	root = level_load_fname(fname);
 	box_print(root, 0);
 }
 
@@ -391,13 +363,19 @@ void render_main(void)
 
 int main(int argc, char *argv[])
 {
+	if(argc <= 1)
+	{
+		printf("%s dat/midbox.4lv (or something like that).\n", argv[0]);
+		return 99;
+	}
+
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO);
 	SDL_WM_SetCaption("4 (pronounced \"sardinelauncher\")", NULL);
 	screen = SDL_SetVideoMode(rtbuf_width * rtbuf_scale, rtbuf_height * rtbuf_scale, 32, 0);
 	rtbuf = malloc(rtbuf_width * rtbuf_height * 4);
 
 	cam_init();
-	level_init();
+	level_init(argv[1]);
 	render_main();
 
 	free(rtbuf);

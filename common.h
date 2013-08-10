@@ -115,12 +115,18 @@ extern camera_t cam;
 float box_volume(box_t *b);
 void box_depth_change_up(box_t *b, int d);
 void box_depth_change_down(box_t *b, int d);
+void box_free(box_t *b);
+void box_free_tree(box_t *b);
 box_t *box_new(v4f_t *v0, v4f_t *v1, v4f_t *color, int op);
 void box_print(box_t *b, int tabs);
 box_t *box_inject(box_t *r, box_t *b);
 int box_in(box_t *box, v4f_t *p);
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside);
 float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside);
+
+// level.c
+box_t *level_load_fp(FILE *fp);
+box_t *level_load_fname(const char *fname);
 
 // vec.c
 void vec_norm(v4f_t *v);

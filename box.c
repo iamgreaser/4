@@ -56,6 +56,24 @@ void box_depth_change_down(box_t *b, int d)
 	return box_depth_change_down(b->c[1], d);
 }
 
+void box_free(box_t *b)
+{
+	uint8_t *p = (uint8_t *)b;
+	p -= b->ptroffs;
+	free(b);
+}
+
+void box_free_tree(box_t *b)
+{
+	if(b == NULL)
+		return;
+	
+	box_free_tree(b->c[0]);
+	box_free_tree(b->c[1]);
+	b->c[0] = b->c[1] = NULL;
+	box_free(b);
+}
+
 box_t *box_new(v4f_t *v0, v4f_t *v1, v4f_t *color, int op)
 {
 	box_t *b = malloc(sizeof(box_t) + 16);
