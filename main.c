@@ -188,12 +188,12 @@ void cam_set(void)
 	// load identity
 	mat_ident(&cam.m);
 
-	// rotate around yw
+	// rotate around xy
 	mat_ident(&rotmat);
-	s = sinf(cam.ayw);
-	c = cosf(cam.ayw);
-	rotmat.v.x.m = _mm_set_ps(0, -s, 0, c);
-	rotmat.v.z.m = _mm_set_ps(0, c, 0, s);
+	s = sinf(cam.axy);
+	c = cosf(cam.axy);
+	rotmat.v.z.m = _mm_set_ps(-s, c, 0, 0);
+	rotmat.v.w.m = _mm_set_ps(c, s, 0, 0);
 	mat_mul(&cam.m, &rotmat);
 
 	// rotate around xw
@@ -204,12 +204,12 @@ void cam_set(void)
 	rotmat.v.z.m = _mm_set_ps(0, c, s, 0);
 	mat_mul(&cam.m, &rotmat);
 
-	// rotate around xy
+	// rotate around yw
 	mat_ident(&rotmat);
-	s = sinf(cam.axy);
-	c = cosf(cam.axy);
-	rotmat.v.z.m = _mm_set_ps(-s, c, 0, 0);
-	rotmat.v.w.m = _mm_set_ps(c, s, 0, 0);
+	s = sinf(cam.ayw);
+	c = cosf(cam.ayw);
+	rotmat.v.x.m = _mm_set_ps(0, -s, 0, c);
+	rotmat.v.z.m = _mm_set_ps(0, c, 0, s);
 	mat_mul(&cam.m, &rotmat);
 
 }
@@ -513,6 +513,7 @@ uint32_t trace_pixel(float sx, float sy)
 		//printf("%f %f %f %f\n", n.v.x, n.v.y, n.v.z, n.v.w);
 		dc.m = _mm_mul_ps(l.m, n.m);
 		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
+		if(diff < 0.0f) diff = -diff;
 		//printf("%f\n", diff);
 
 		// multiply diffuse
@@ -632,14 +633,25 @@ void render_main(void)
 	float vaxy = 0.0f;
 	float vaxw = 0.0f;
 	float vayw = 0.0f;
+	float vx = 0.0f;
+	float vy = 0.0f;
+	float vz = 0.0f;
+	float vw = 0.0f;
 	while(!quitflag)
 	{
 		cam_set();
 		render_screen();
 
-		cam.axy += vaxy;
-		cam.axw += vaxw;
-		cam.ayw += vayw;
+		const float vas = 0.03f;
+		cam.axy += vaxy*vas;
+		cam.axw += vaxw*vas;
+		cam.ayw += vayw*vas;
+
+		const float vs = 0.1f;
+		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
+		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
+		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
+		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vw*vs)));
 
 		while(SDL_PollEvent(&ev))
 		switch(ev.type)
@@ -651,22 +663,29 @@ void render_main(void)
 			case SDL_KEYUP:
 			switch(ev.key.keysym.sym)
 			{
-				case SDLK_q:
-					vaxy = 0.0f;
-					break;
 				case SDLK_w:
-					vaxw = 0.0f;
-					break;
-				case SDLK_e:
-					vayw = 0.0f;
+				case SDLK_s:
+					vz = 0.0f;
 					break;
 				case SDLK_a:
+				case SDLK_d:
+					vx = 0.0f;
+					break;
+				case SDLK_q:
+				case SDLK_e:
+					vw = 0.0f;
+					break;
+					
+				case SDLK_u:
+				case SDLK_o:
 					vaxy = 0.0f;
 					break;
-				case SDLK_s:
+				case SDLK_i:
+				case SDLK_k:
 					vaxw = 0.0f;
 					break;
-				case SDLK_d:
+				case SDLK_j:
+				case SDLK_l:
 					vayw = 0.0f;
 					break;
 				default:
@@ -676,23 +695,42 @@ void render_main(void)
 			case SDL_KEYDOWN:
 			switch(ev.key.keysym.sym)
 			{
-				case SDLK_q:
-					vaxy = -0.01f;
-					break;
-				case SDLK_w:
-					vaxw = -0.01f;
-					break;
-				case SDLK_e:
-					vayw = -0.01f;
+				case SDLK_s:
+					vz = -1.0f;
 					break;
 				case SDLK_a:
-					vaxy = +0.01f;
+					vx = -1.0f;
 					break;
-				case SDLK_s:
-					vaxw = +0.01f;
+				case SDLK_q:
+					vw = -1.0f;
+					break;
+				case SDLK_w:
+					vz = +1.0f;
 					break;
 				case SDLK_d:
-					vayw = +0.01f;
+					vx = +1.0f;
+					break;
+				case SDLK_e:
+					vw = +1.0f;
+					break;
+
+				case SDLK_u:
+					vaxy = -1.0f;
+					break;
+				case SDLK_i:
+					vaxw = -1.0f;
+					break;
+				case SDLK_j:
+					vayw = -1.0f;
+					break;
+				case SDLK_o:
+					vaxy = +1.0f;
+					break;
+				case SDLK_k:
+					vaxw = +1.0f;
+					break;
+				case SDLK_l:
+					vayw = +1.0f;
 					break;
 				default:
 					break;
