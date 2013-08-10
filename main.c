@@ -51,61 +51,69 @@ void refresh_fps(void)
 	fps_next_tick += 1000;
 }
 
+#define MAX_IGN 100
 float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
 {
+	box_t *ign_l[MAX_IGN];
+	int ign_c = 0;
+	int ins;
+	v4f_t tp;
+	float ad = 0.0f;
+	float td;
+
 	// just in case we have an empty level!
 	if(box == NULL)
 		return -1.0f;
 	
-	// trace against this box
-	int ins;
-	float d = (box->op == SHP_PAIR && box_in(box, p)
-		? 0.0f
-		: box_crosses(box, p, v, &ins));
-	int doret = 0;
+	// find the box we're tracing from within
+	box = box_in_tree(box, p, ign_l, ign_c);
 
-	if(d >= 0.0f && d <= md)
+	// if this fails, we need to trace to the first surface we hit...
+	// TODO? not sure if this is necessary.
+	// at the moment, we're just going to fail, because you shouldn't be inside a SHP_ADD,
+	// and should always be inside at least one SHP_SUB.
+	if(box == NULL)
+		return -1.0f;
+
+	// otherwise, trace onwards.
+	tp.m = p->m;
+	for(;;)
 	{
-		switch(box->op)
+		// trace to the box end.
+		td = box_crosses(box, &tp, v, &ins);
+		if(td < 0.0f) // wat, pretty sure this should just crash and burn as an assertion
+			return -1.0f;
+
+		// check if we have exceeded our distance.
+		ad += td;
+		if(ad >= md)
+			// we have. fail.
+			return -1.0f;
+		
+		// moving right along...
+		// TODO: clear the ignore buffer more efficiently
+		ign_l[ign_c++] = box;
+		if(ign_c > 100)
+			abort();
+		//tp.m = _mm_add_ps(p->m, _mm_mul_ps(_mm_set1_ps(ad), v->m));
+		tp.m = _mm_add_ps(tp.m, _mm_mul_ps(_mm_set1_ps(td), v->m));
+
+		// check to see if we're in another box.
+		box_t *nbox = box_in_tree(root, &tp, ign_l, ign_c);
+		if(nbox == NULL || nbox->op != SHP_SUB)
 		{
-			case SHP_PAIR: {
-				// find nearest of the two
-				int ins0, ins1;
+			// nope. let's end it here.
+			if(nbox == NULL)
+				nbox = box;
 
-				box_t *retbox0 = NULL;
-				float d0 = trace_box(box->c[0], p, v, color, &retbox0, &ins0, md);
-				if(d0 > 0.0f && d0 <= md)
-				{
-					doret = 1;
-					*retbox = retbox0;
-					if(inside != NULL) *inside = ins0;
-					md = d0;
-				}
-
-				box_t *retbox1 = NULL;
-				float d1 = trace_box(box->c[1], p, v, color, &retbox1, &ins1, md);
-				if(d1 > 0.0f && d1 <= md)
-				{
-					doret = 1;
-					*retbox = retbox1;
-					if(inside != NULL) *inside = ins1;
-					md = d1;
-				}
-			} break;
-			default:
-				if(d > 0.0f && d <= md)
-				{
-					color->m = box->color.m;
-					md = d;
-					doret = 1;
-					if(inside != NULL) *inside = ins;
-					*retbox = box;
-				}
-				break;
+			*retbox = nbox;
+			*inside = ins;
+			color->m = nbox->color.m;
+			return ad;
 		}
-	}
 
-	return doret ? md : -1.0f;
+		box = nbox;
+	}
 }
 
 uint32_t trace_pixel(float sx, float sy)

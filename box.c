@@ -185,6 +185,48 @@ int box_in(box_t *box, v4f_t *p)
 	return (_mm_movemask_ps(cmp.m) == 15);
 }
 
+int box_pair_touch(box_t *b0, box_t *b1)
+{
+	v4f_t cmp;
+
+	cmp.m = _mm_or_ps(
+		_mm_cmpge_ps(b0->v1.m, b1->v0.m),
+		_mm_cmpge_ps(b1->v1.m, b0->v0.m));
+	
+	return (_mm_movemask_ps(cmp.m) != 0);
+
+}
+
+box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
+{
+	int i;
+
+	// check if null
+	if(box == NULL)
+		return NULL;
+	
+	// check if we're ignoring this box
+	for(i = 0; i < ignore_count; i++)
+		if(box == ignore[i])
+			return NULL;
+
+	// check if in this box,
+	if(!box_in(box, p))
+		return NULL;
+	
+	// check if we're a pair
+	if(box->op != SHP_PAIR)
+		return box;
+	
+	// traverse children
+	box_t *b = box_in_tree(box->c[0], p, ignore, ignore_count);
+	if(b == NULL)
+		b = box_in_tree(box->c[1], p, ignore, ignore_count);
+	
+	// return
+	return b;
+}
+
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 {
 	// get centre

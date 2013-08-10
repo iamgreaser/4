@@ -114,7 +114,10 @@ box_t *level_parse_group(FILE *fp)
 				if(det == '-')
 					typ = SHP_SUB;
 
-				box_t *b = box_new(&v0, &v1, &color, typ);
+				v4f_t v0a, v1a;
+				v0a.m = _mm_min_ps(v0.m, v1.m);
+				v1a.m = _mm_max_ps(v0.m, v1.m);
+				box_t *b = box_new(&v0a, &v1a, &color, typ);
 				r = box_inject(r, b);
 			} break;
 
