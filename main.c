@@ -351,72 +351,100 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *v)
 	int outmask = (_mm_movemask_ps(cmp0.m) | (_mm_movemask_ps(cmp1.m) << 4));
 
 	// check if we are inside this box (?)
-	//if(outmask == 0xFF)
-	//	return 0.0f;
+	int start_inside = (outmask == 0xFF);
 	
 	// get deltas
 	__m128 d0 = _mm_sub_ps(box->v0.m, p->m);
 	__m128 d1 = _mm_sub_ps(box->v1.m, p->m);
 
 	// mask them
-	__m128 m0 = _mm_cmpgt_ps(_mm_mul_ps(v->m, d0), _mm_setzero_ps());
-	__m128 m1 = _mm_cmpgt_ps(_mm_mul_ps(v->m, d1), _mm_setzero_ps());
+	v4f_t m0, m1;
+	m0.m = _mm_cmpgt_ps(_mm_mul_ps(v->m, d0), _mm_setzero_ps());
+	m1.m = _mm_cmpgt_ps(_mm_mul_ps(v->m, d1), _mm_setzero_ps());
 
-	int colmask = (_mm_movemask_ps(m0) | (_mm_movemask_ps(m1) << 4));
+	int colmask = (_mm_movemask_ps(m0.m) | (_mm_movemask_ps(m1.m) << 4));
 
 	// check if we can hit an in face
 	if((colmask & ~outmask) == 0)
 		return -1.0f;
 
-	// get abs velocity / deltas
+	// get abs velocity
 	v->m = _mm_max_ps(_mm_and_ps(v->m, (__m128)_mm_set1_epi32(0x7FFFFFFF)), _mm_set1_ps(0.00001f));
+
+	// get abs deltas
 	d0 = _mm_and_ps(d0, (__m128)_mm_set1_epi32(0x7FFFFFFF));
 	d1 = _mm_and_ps(d1, (__m128)_mm_set1_epi32(0x7FFFFFFF));
-	//printf("%f %f %f %f\n", v->v.x, v->v.y, v->v.z, v->v.w);
 
-	// get time to plane
-	// add a large value for stuff we can't touch
-	v4f_t t0, t1;
-	t0.m = _mm_add_ps(_mm_div_ps(d0, v->m), _mm_andnot_ps(m0, _mm_set1_ps(1000000000.0f)));
-	t1.m = _mm_add_ps(_mm_div_ps(d1, v->m), _mm_andnot_ps(m1, _mm_set1_ps(1000000000.0f)));
+	// get base time to plane
+	__m128 tb0 = _mm_div_ps(d0, v->m);
+	__m128 tb1 = _mm_div_ps(d1, v->m);
 
-	// find the first thing we hit
-	int idx0, idx1;
-
-	if(t0.v.x < t0.v.y && t0.v.x < t0.v.z && t0.v.x < t0.v.w)
-		idx0 = F_XN;
-	else if(t0.v.y < t0.v.z && t0.v.y < t0.v.w)
-		idx0 = F_YN;
-	else if(t0.v.z < t0.v.w)
-		idx0 = F_ZN;
-	else
-		idx0 = F_WN;
-
-	if(t1.v.x < t1.v.y && t1.v.x < t1.v.z && t1.v.x < t1.v.w)
-		idx1 = F_XP;
-	else if(t1.v.y < t1.v.z && t1.v.y < t1.v.w)
-		idx1 = F_YP;
-	else if(t1.v.z < t1.v.w)
-		idx1 = F_ZP;
-	else
-		idx1 = F_WP;
-	
-	int idx;
-	float minv;
-	if(t0.a[idx0] <= t1.a[idx1&3])
+	// loop
+	for(;;)
 	{
-		idx = idx0;
-		minv = t0.a[idx0];
-	} else {
-		idx = idx1;
-		minv = t1.a[idx1&3];
+		// get masked out time to plane
+		// add a large value for stuff we can't touch
+		v4f_t t0, t1;
+		t0.m = _mm_add_ps(tb0, _mm_andnot_ps(m0.m, _mm_set1_ps(1000000000.0f)));
+		t1.m = _mm_add_ps(tb1, _mm_andnot_ps(m1.m, _mm_set1_ps(1000000000.0f)));
+
+		// find the first thing we hit
+		int idx0, idx1;
+
+		if(t0.v.x < t0.v.y && t0.v.x < t0.v.z && t0.v.x < t0.v.w)
+			idx0 = F_XN;
+		else if(t0.v.y < t0.v.z && t0.v.y < t0.v.w)
+			idx0 = F_YN;
+		else if(t0.v.z < t0.v.w)
+			idx0 = F_ZN;
+		else
+			idx0 = F_WN;
+
+		if(t1.v.x < t1.v.y && t1.v.x < t1.v.z && t1.v.x < t1.v.w)
+			idx1 = F_XP;
+		else if(t1.v.y < t1.v.z && t1.v.y < t1.v.w)
+			idx1 = F_YP;
+		else if(t1.v.z < t1.v.w)
+			idx1 = F_ZP;
+		else
+			idx1 = F_WP;
+		
+		// get index + distance
+		int idx;
+		float minv;
+		if(t0.a[idx0] <= t1.a[idx1&3])
+		{
+			idx = idx0;
+			minv = t0.a[idx0];
+		} else {
+			idx = idx1;
+			minv = t1.a[idx1&3];
+		}
+
+		// check if we started off inside this object - if so, give distance to plane NOW.
+		if(start_inside)
+			return minv;
+
+		// check if this plane is an out plane - if so, FAIL.
+		if(((1<<idx)&(~outmask)&colmask) == 0)
+			return -1.0f;
+
+		// remove this plane from colmask and add it to outmask
+		colmask &= ~(1<<idx);
+		outmask |= (1<<idx);
+
+		// if outmask is 0xFF, we've FINALLY reached the inside of the volume - RETURN DISTANCE
+		if(outmask == 0xFF)
+			return minv;
+
+		// add bit to mask
+		if(idx < 4)
+			m0.a[idx] = 0.0f;
+		else
+			m1.a[idx&3] = 0.0f;
+
+		// loop around!
 	}
-
-	//printf("%i %f\n", idx, minv);
-
-	return ((1<<idx)&(~outmask)&colmask) != 0
-		? minv
-		: -1.0f;
 }
 
 float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, float md)
