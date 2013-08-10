@@ -92,7 +92,6 @@ typedef struct camera
 {
 	m4f_t m;
 	v4f_t o;
-	float axw, ayw, axy, reserved1;
 } camera_t;
 
 #define MAX_BOX 10000
@@ -141,7 +140,7 @@ void mat_mul(m4f_t *a, m4f_t *b)
 		v = 0.0f;
 
 		for(k=0; k<4; k++)
-			v += a->a[i].a[k] * b->a[k].a[j];
+			v += b->a[i].a[k] * a->a[k].a[j];
 
 		c.a[i].a[j] = v;
 	}
@@ -178,38 +177,35 @@ uint32_t color_vec_sse(__m128 v)
 	return _mm_cvtsi128_si32(vi);
 }
 
-void cam_set(void)
+void cam_rotate_by(float axy, float axw, float ayw)
 {
 	m4f_t rotmat;
 	float s, c;
 
 	// aiming for left-hand coordinates - y up, x right, z forward, ana-kata wherever the fuck it goes
 
-	// load identity
-	mat_ident(&cam.m);
-
-	// rotate around xy
-	mat_ident(&rotmat);
-	s = sinf(cam.axy);
-	c = cosf(cam.axy);
-	rotmat.v.z.m = _mm_set_ps(-s, c, 0, 0);
-	rotmat.v.w.m = _mm_set_ps(c, s, 0, 0);
-	mat_mul(&cam.m, &rotmat);
-
 	// rotate around xw
 	mat_ident(&rotmat);
-	s = sinf(cam.axw);
-	c = cosf(cam.axw);
+	s = sinf(axw);
+	c = cosf(axw);
 	rotmat.v.y.m = _mm_set_ps(0, -s, c, 0);
 	rotmat.v.z.m = _mm_set_ps(0, c, s, 0);
 	mat_mul(&cam.m, &rotmat);
 
 	// rotate around yw
 	mat_ident(&rotmat);
-	s = sinf(cam.ayw);
-	c = cosf(cam.ayw);
+	s = sinf(ayw);
+	c = cosf(ayw);
 	rotmat.v.x.m = _mm_set_ps(0, -s, 0, c);
 	rotmat.v.z.m = _mm_set_ps(0, c, 0, s);
+	mat_mul(&cam.m, &rotmat);
+
+	// rotate around xy
+	mat_ident(&rotmat);
+	s = sinf(axy);
+	c = cosf(axy);
+	rotmat.v.z.m = _mm_set_ps(-s, c, 0, 0);
+	rotmat.v.w.m = _mm_set_ps(c, s, 0, 0);
 	mat_mul(&cam.m, &rotmat);
 }
 
@@ -668,13 +664,8 @@ void render_screen(void)
 
 void cam_init(void)
 {
-	cam.axw = 0.0f;
-	cam.ayw = 0.0f;
-	cam.axy = 0.0f;
-	//cam.o.m = _mm_set_ps(2, 0, 0, 10);
 	cam.o.m = _mm_set_ps(0, 0, 0, 0);
-
-	cam_set();
+	mat_ident(&cam.m);
 }
 
 void level_init(void)
@@ -726,13 +717,10 @@ void render_main(void)
 	float vw = 0.0f;
 	while(!quitflag)
 	{
-		cam_set();
 		render_screen();
 
 		const float vas = 0.03f;
-		cam.axy += vaxy*vas;
-		cam.axw += vaxw*vas;
-		cam.ayw += vayw*vas;
+		cam_rotate_by(vaxy*vas, vaxw*vas, vayw*vas);
 
 		const float vs = 0.1f;
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
