@@ -60,6 +60,7 @@ enum
 	F_XP, F_YP, F_ZP, F_WP,
 };
 
+__attribute__((aligned(16)))
 typedef union v4f
 {
 	struct { float x, y, z, w; } v;
@@ -78,8 +79,10 @@ struct box
 	box_t *c[2]; // children
 	box_t *p; // parent
 	int op, depth;
+	int ptroffs;
 };
 
+__attribute__((aligned(16)))
 typedef union m4f
 {
 	struct { v4f_t x, y, z, w; } v;
@@ -107,6 +110,7 @@ int rtbuf_height = 240;
 int rtbuf_scale = 3;
 int quitflag = 0;
 
+__attribute__((aligned(16)))
 camera_t cam;
 
 void refresh_fps(void)
@@ -251,7 +255,17 @@ void box_depth_change_down(box_t *b, int d)
 
 box_t *box_new(v4f_t *v0, v4f_t *v1, v4f_t *color, int op)
 {
-	box_t *b = malloc(sizeof(box_t));
+	box_t *b = malloc(sizeof(box_t) + 16);
+	
+	int ptroffs = 0;
+
+	while((((long)b)&15) != 0)
+	{
+		b = (box_t *)(((uint8_t *)b) + 1);
+		ptroffs++;
+	}
+
+	b->ptroffs = ptroffs;
 
 	b->v0.m = v0->m;
 	b->v1.m = v1->m;
@@ -698,8 +712,8 @@ void level_init(void)
 
 	for(i = 0; i < 8; i++)
 	{
-		v0.m = _mm_set_ps(-1.0f, -1.0f, -1.0f, -1.0f);
-		v1.m = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
+		v0.m = _mm_set_ps(-10.0f, -10.0f, -10.0f, -10.0f);
+		v1.m = _mm_set_ps(10.0f, 10.0f, 10.0f, 10.0f);
 
 		float offs_f = i < 4 ? 3.0f : -3.0f;
 		__m128 offs = _mm_load_ss(&offs_f);
