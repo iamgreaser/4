@@ -318,7 +318,7 @@ int box_in(box_t *box, v4f_t *p)
 	return (_mm_movemask_ps(cmp.m) == 15);
 }
 
-void box_normal(box_t *box, v4f_t *p, v4f_t *n)
+void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 {
 	// get centre
 	__m128 cent = _mm_mul_ps(_mm_add_ps(box->v0.m, box->v1.m), _mm_set1_ps(0.5f));
@@ -337,11 +337,15 @@ void box_normal(box_t *box, v4f_t *p, v4f_t *n)
 	);
 
 	// get masked value and normalise
-	n->m = _mm_and_ps(mask, _mm_sub_ps(_mm_setzero_ps(), offs));
+	if(inside)
+		n->m = _mm_and_ps(mask, offs);
+	else
+		n->m = _mm_and_ps(mask, _mm_sub_ps(_mm_setzero_ps(), offs));
+
 	vec_norm(n);
 }
 
-float box_crosses(box_t *box, v4f_t *p, v4f_t *v)
+float box_crosses(box_t *box, v4f_t *p, v4f_t *v, int *inside)
 {
 	// determine what faces are "in" or "out"
 	v4f_t cmp0, cmp1;
@@ -367,7 +371,7 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *v)
 	// check if we can hit an in face
 	if((colmask & ~outmask) == 0)
 		return -1.0f;
-
+	
 	// get abs velocity
 	v->m = _mm_max_ps(_mm_and_ps(v->m, (__m128)_mm_set1_epi32(0x7FFFFFFF)), _mm_set1_ps(0.00001f));
 
@@ -423,7 +427,10 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *v)
 
 		// check if we started off inside this object - if so, give distance to plane NOW.
 		if(start_inside)
+		{
+			if(inside != NULL) *inside = 1;
 			return minv;
+		}
 
 		// check if this plane is an out plane - if so, FAIL.
 		if(((1<<idx)&(~outmask)&colmask) == 0)
@@ -434,8 +441,11 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *v)
 		outmask |= (1<<idx);
 
 		// if outmask is 0xFF, we've FINALLY reached the inside of the volume - RETURN DISTANCE
-		if(outmask == 0xFF)
+		if((outmask&0xFF) == 0xFF)
+		{
+			if(inside != NULL) *inside = 0;
 			return minv;
+		}
 
 		// add bit to mask
 		if(idx < 4)
@@ -447,41 +457,75 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *v)
 	}
 }
 
-float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, float md)
+float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
 {
 	// trace against this box
 	v4f_t rb;
 	rb.m = p->m;
-	float d = box_crosses(box, &rb, v);
+	int ins;
+	float d = (box->op == SHP_PAIR && box_in(box, p)
+		? 0.0f
+		: box_crosses(box, &rb, v, &ins));
 	int doret = 0;
 
-	if(d >= 0.0f && d < md)
+	if(d >= 0.0f && d <= md)
 	{
 		switch(box->op)
 		{
 			case SHP_PAIR: {
 				// find nearest of the two
 				v4f_t r0, r1;
+				int ins0, ins1;
 				r0.m = p->m;
 				r1.m = p->m;
 
+				// dat assertion
+				/*
+				if(0
+					|| box->c[0]->v0.v.x < box->v0.v.x
+					|| box->c[0]->v0.v.y < box->v0.v.y
+					|| box->c[0]->v0.v.z < box->v0.v.z
+					|| box->c[0]->v0.v.w < box->v0.v.w
+					|| box->c[1]->v0.v.x < box->v0.v.x
+					|| box->c[1]->v0.v.y < box->v0.v.y
+					|| box->c[1]->v0.v.z < box->v0.v.z
+					|| box->c[1]->v0.v.w < box->v0.v.w
+					|| box->c[0]->v1.v.x > box->v1.v.x
+					|| box->c[0]->v1.v.y > box->v1.v.y
+					|| box->c[0]->v1.v.z > box->v1.v.z
+					|| box->c[0]->v1.v.w > box->v1.v.w
+					|| box->c[1]->v1.v.x > box->v1.v.x
+					|| box->c[1]->v1.v.y > box->v1.v.y
+					|| box->c[1]->v1.v.z > box->v1.v.z
+					|| box->c[1]->v1.v.w > box->v1.v.w
+				)
+				{
+					fprintf(stderr, "THIS IS BROKEN\n");
+					fflush(stderr);
+					abort();
+				}
+				*/
+
+
 				box_t *retbox0 = NULL;
-				float d0 = trace_box(box, &r0, v, color, &retbox0, md);
+				float d0 = trace_box(box->c[0], &r0, v, color, &retbox0, &ins0, md);
 				if(d0 > 0.0f && d0 <= md)
 				{
 					doret = 1;
 					*retbox = retbox0;
 					p->m = r0.m;
+					if(inside != NULL) *inside = ins0;
 					md = d0;
 				}
 
 				box_t *retbox1 = NULL;
-				float d1 = trace_box(box, &r1, v, color, &retbox1, md);
+				float d1 = trace_box(box->c[1], &r1, v, color, &retbox1, &ins1, md);
 				if(d1 > 0.0f && d1 <= md)
 				{
 					doret = 1;
 					*retbox = retbox1;
 					p->m = r1.m;
+					if(inside != NULL) *inside = ins1;
 					md = d1;
 				}
 			} break;
@@ -491,6 +535,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, fl
 					color->m = box->color.m;
 					md = d;
 					doret = 1;
+					if(inside != NULL) *inside = ins;
 					p->m = _mm_add_ps(p->m, _mm_mul_ps(
 							v->m, _mm_set1_ps(d)));
 					*retbox = box;
@@ -523,13 +568,14 @@ uint32_t trace_pixel(float sx, float sy)
 	v4f_t p;
 	box_t *box = NULL;
 	p.m = cam.o.m;
-	trace_box(root, &p, &f, &color, &box, 100.0f);
+	int inside;
+	trace_box(root, &p, &f, &color, &box, &inside, 100.0f);
 
 	if(box != NULL)
 	{
 		// calculate normal
 		v4f_t n;
-		box_normal(box, &p, &n);
+		box_normal(box, &p, &n, inside);
 
 		// calculate diffuse (against one point for now)
 		v4f_t l, dc;
@@ -634,7 +680,7 @@ void level_init(void)
 
 	int i;
 
-	i = 2; //for(i = 0; i < 8; i++)
+	for(i = 0; i < 8; i++)
 	{
 		v0.m = _mm_set_ps(-1.0f, -1.0f, -1.0f, -1.0f);
 		v1.m = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
@@ -703,6 +749,10 @@ void render_main(void)
 				case SDLK_e:
 					vw = 0.0f;
 					break;
+				case SDLK_LCTRL:
+				case SDLK_SPACE:
+					vy = 0.0f;
+					break;
 					
 				case SDLK_u:
 				case SDLK_o:
@@ -732,6 +782,9 @@ void render_main(void)
 				case SDLK_q:
 					vw = -1.0f;
 					break;
+				case SDLK_SPACE:
+					vy = -1.0f;
+					break;
 				case SDLK_w:
 					vz = +1.0f;
 					break;
@@ -740,6 +793,9 @@ void render_main(void)
 					break;
 				case SDLK_e:
 					vw = +1.0f;
+					break;
+				case SDLK_LCTRL:
+					vy = +1.0f;
 					break;
 
 				case SDLK_u:
