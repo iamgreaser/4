@@ -74,6 +74,22 @@ box_t *level_parse_group(FILE *fp)
 			case '}':
 				break; // falls through to do/while block
 
+			case '{': {
+				box_t *b = level_parse_group(fp);
+
+				if(b == NULL)
+				{
+					box_free_tree(r);
+					return NULL;
+				}
+
+				r = box_inject(r, b);
+			} break;
+			
+			case '#':
+				fscanf(fp, "%*[^\r\n]");
+				break;
+
 			case '-':
 			case '+': {
 				v4f_t v0, v1, color;
@@ -108,6 +124,10 @@ box_t *level_parse_group(FILE *fp)
 				return NULL;
 		}
 	} while(det != '}');
+
+	if(r == NULL)
+		fprintf(stderr, "level_parse_group: cannot have an empty group!\n");
+		// follows through
 
 	return r;
 }
