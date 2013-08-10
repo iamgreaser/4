@@ -96,6 +96,8 @@ typedef struct camera
 
 #define MAX_BOX 10000
 
+int fps_counter = 0;
+int fps_next_tick = 0;
 box_t *root = NULL;
 
 SDL_Surface *screen = NULL;
@@ -106,6 +108,15 @@ int rtbuf_scale = 3;
 int quitflag = 0;
 
 camera_t cam;
+
+void refresh_fps(void)
+{
+	char buf[128];
+	sprintf(buf, "4 (pronounced \"sardinelauncher\") - FPS: %i", fps_counter);
+	SDL_WM_SetCaption(buf, NULL);
+	fps_counter = 0;
+	fps_next_tick += 1000;
+}
 
 void vec_norm(v4f_t *v)
 {
@@ -660,6 +671,10 @@ void render_screen(void)
 	SDL_UnlockSurface(screen);
 
 	SDL_Flip(screen);
+
+	fps_counter++;
+	if(SDL_GetTicks() >= fps_next_tick)
+		refresh_fps();
 }
 
 void cam_init(void)
@@ -670,7 +685,12 @@ void cam_init(void)
 
 void level_init(void)
 {
-	v4f_t v0, v1, color;
+	v4f_t clist[4];
+	clist[0].m = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f);
+	clist[1].m = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f);
+	clist[2].m = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f);
+	clist[3].m = _mm_set_ps(1.0f, 1.0f, 1.0f, 0.0f);
+	v4f_t v0, v1;
 	box_t **blist = malloc(sizeof(box_t *) * 100000);
 
 	int i;
@@ -689,9 +709,7 @@ void level_init(void)
 		v0.m = _mm_add_ps(v0.m, offs);
 		v1.m = _mm_add_ps(v1.m, offs);
 
-		color.m = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
-
-		blist[i] = box_new(&v0, &v1, &color, SHP_ADD);
+		blist[i] = box_new(&v0, &v1, &clist[i&3], SHP_ADD);
 		bcount++;
 	}
 
@@ -705,6 +723,9 @@ void level_init(void)
 
 void render_main(void)
 {
+	fps_counter = 0;
+	fps_next_tick = SDL_GetTicks() + 1000;
+
 	SDL_Event ev;
 
 	quitflag = 0;
