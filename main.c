@@ -211,7 +211,6 @@ void cam_set(void)
 	rotmat.v.x.m = _mm_set_ps(0, -s, 0, c);
 	rotmat.v.z.m = _mm_set_ps(0, c, 0, s);
 	mat_mul(&cam.m, &rotmat);
-
 }
 
 float box_volume(box_t *b)
@@ -511,34 +510,6 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 				r0.m = p->m;
 				r1.m = p->m;
 
-				// dat assertion
-				/*
-				if(0
-					|| box->c[0]->v0.v.x < box->v0.v.x
-					|| box->c[0]->v0.v.y < box->v0.v.y
-					|| box->c[0]->v0.v.z < box->v0.v.z
-					|| box->c[0]->v0.v.w < box->v0.v.w
-					|| box->c[1]->v0.v.x < box->v0.v.x
-					|| box->c[1]->v0.v.y < box->v0.v.y
-					|| box->c[1]->v0.v.z < box->v0.v.z
-					|| box->c[1]->v0.v.w < box->v0.v.w
-					|| box->c[0]->v1.v.x > box->v1.v.x
-					|| box->c[0]->v1.v.y > box->v1.v.y
-					|| box->c[0]->v1.v.z > box->v1.v.z
-					|| box->c[0]->v1.v.w > box->v1.v.w
-					|| box->c[1]->v1.v.x > box->v1.v.x
-					|| box->c[1]->v1.v.y > box->v1.v.y
-					|| box->c[1]->v1.v.z > box->v1.v.z
-					|| box->c[1]->v1.v.w > box->v1.v.w
-				)
-				{
-					fprintf(stderr, "THIS IS BROKEN\n");
-					fflush(stderr);
-					abort();
-				}
-				*/
-
-
 				box_t *retbox0 = NULL;
 				float d0 = trace_box(box->c[0], &r0, v, color, &retbox0, &ins0, md);
 				if(d0 > 0.0f && d0 <= md)
@@ -576,7 +547,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 		}
 	}
 
-	return doret ? d : -1.0f;
+	return doret ? md : -1.0f;
 }
 
 uint32_t trace_pixel(float sx, float sy)
@@ -709,8 +680,10 @@ void cam_init(void)
 void level_init(void)
 {
 	v4f_t v0, v1, color;
+	box_t **blist = malloc(sizeof(box_t *) * 100000);
 
 	int i;
+	int bcount = 0;
 
 	for(i = 0; i < 8; i++)
 	{
@@ -727,9 +700,15 @@ void level_init(void)
 
 		color.m = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
 
-		root = box_inject(root, box_new(&v0, &v1, &color, SHP_ADD));
+		blist[i] = box_new(&v0, &v1, &color, SHP_ADD);
+		bcount++;
 	}
 
+	for(i = 0; i < bcount-1; i += 2, bcount++)
+		blist[bcount] = box_inject(blist[i], blist[i+1]);
+	
+	root = blist[bcount-1];
+	free(blist);
 	box_print(root, 0);
 }
 
