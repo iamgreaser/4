@@ -124,8 +124,10 @@ void cam_rotate_by(float axy, float axw, float ayw)
 	mat_ident(&rotmat);
 	s = sinf(axy);
 	c = cosf(axy);
-	rotmat.v.z.m = _mm_set_ps(-s, c, 0, 0);
-	rotmat.v.w.m = _mm_set_ps(c, s, 0, 0);
+	rotmat.v.x.m = _mm_set_ps(-s, 0, 0, c);
+	rotmat.v.w.m = _mm_set_ps(c, 0, 0, s);
+	//rotmat.v.z.m = _mm_set_ps(-s, c, 0, 0);
+	//rotmat.v.w.m = _mm_set_ps(c, s, 0, 0);
 	mat_mul(&cam.m, &rotmat);
 }
 
