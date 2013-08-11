@@ -250,6 +250,64 @@ void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 	vec_norm(n);
 }
 
+float box_crosses_outside(box_t *box, v4f_t *p, v4f_t *vi)
+{
+	// the general idea:
+	// define the "out" faces to be in the direction of the ray velocity.
+	// define the "in" faces to be the other faces.
+	// if the largest "in" face distance is greater than the smallest "out" face distance,
+	// return the largest "in" face distance - we've hit the box.
+	// otherwise, return -1.0f.
+
+	// copy vi so we don't mutilate it
+	v4f_t v;
+	v.m = vi->m;
+
+	// determine direction
+	__m128 dirneg = _mm_cmpgt_ps(_mm_setzero_ps(), v.m);
+
+	// get in/out values
+	__m128 fi, fo, fd, fdm;
+	fd = _mm_sub_ps(box->v1.m, box->v0.m);
+	fdm = _mm_and_ps(dirneg, fd);
+	fi = _mm_add_ps(box->v0.m, fdm);
+	fo = _mm_sub_ps(box->v1.m, fdm);
+
+	// clamp v to not be in the +/- epsilon range
+	__m128 vflip = _mm_and_ps(dirneg, (__m128)_mm_set1_epi32(-0x80000000));
+	v.m = _mm_xor_ps(vflip,
+		_mm_max_ps(
+			_mm_set1_ps(0.00000001f),
+			_mm_xor_ps(vflip, v.m)
+		));
+	
+	if(_mm_movemask_ps(_mm_xor_ps(vflip, v.m)) != 0)
+		abort();
+
+	// offset the values
+	// note, using negative o and taking max, hence the swapped args.
+	fi = _mm_sub_ps(fi, p->m);
+	fo = _mm_sub_ps(p->m, fo);
+
+	// get times
+	__m128 ti = _mm_div_ps(fi, v.m);
+	__m128 to = _mm_div_ps(fo, v.m);
+
+	// get largest times
+	v4f_t c0;
+	c0.m = _mm_max_ps(
+		_mm_movehl_ps(to, ti),
+		_mm_movelh_ps(ti, to)
+	);
+
+	// get distances
+	float dci = (c0.a[0] > c0.a[1] ? c0.a[0] : c0.a[1]);
+	float dco = -(c0.a[2] > c0.a[3] ? c0.a[2] : c0.a[3]);
+	
+	// return appropriately
+	return (dci < dco ? dci : -1.0f);
+}
+
 float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 {
 	// copy vi so we don't mutilate it
@@ -293,9 +351,6 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 	// get base time to plane
 	__m128 tb0 = _mm_div_ps(d0, v->m);
 	__m128 tb1 = _mm_div_ps(d1, v->m);
-
-	// TODO: suggested optimisation to apply:
-	// if max(in_dist) < min(out_dist), then we are inside the box.
 
 	// loop
 	for(;;)

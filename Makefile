@@ -4,8 +4,10 @@ BINNAME = 4
 OBJS = box.o level.o vec.o main.o
 INCLUDES = common.h
 
-CFLAGS = -fopenmp -g -Wall -O2 -msse2 `sdl-config --cflags` $(CFLAGS_EXTRA)
-LDFLAGS = -fopenmp -g -Wall -lm `sdl-config --libs` $(LDFLAGS_EXTRA)
+SDL_CF = `sdl-config --cflags` 
+LIBS = -lm `sdl-config --libs` 
+CFLAGS = -fopenmp -g -Wall -O2 -msse2 -mfpmath=sse $(SDL_CF) $(CFLAGS_EXTRA)
+LDFLAGS = -fopenmp -g -Wall $(LIBS) $(LDFLAGS_EXTRA)
 
 RM = rm
 RM_F = $(RM) -f

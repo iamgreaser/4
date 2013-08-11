@@ -63,7 +63,8 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 	if(box->op != SHP_PAIR && !box_in(box, p))
 	{
 		// nope. can we trace to it?
-		d = box_crosses(box, p, v, NULL);
+		d = box_crosses_outside(box, p, v);
+		//d = box_crosses(box, p, v, NULL);
 
 		if(d < -1.0f || d >= md)
 		{
@@ -81,7 +82,7 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 		float d0 = trace_into_box(&b0, p, v, md);
 		if(d0 >= 0.0f)
 			md = d0;
-		float d1 = (d0 >= 0.0f ? -1.0f : trace_into_box(&b1, p, v, md));
+		float d1 = trace_into_box(&b1, p, v, md);
 
 		if(d0 < 0.0f || (d1 >= 0.0f && d1 < d0))
 		{
@@ -384,7 +385,7 @@ void render_main(void)
 			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r);
 			
 			(void)d;
-			if(d >= 0.0f) md = d - r;
+			//if(d >= 0.0f) md = d - r;
 
 			cam.o.m = _mm_add_ps(cam.o.m,
 				_mm_mul_ps(_mm_set1_ps(md), tv.m));
