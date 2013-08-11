@@ -245,9 +245,9 @@ void render_screen(void)
 	if(mbutts & 4)
 	{
 		render_viewport(x0, y0, x3-x0, y1-y0, &nx, &cam.m.v.y, &cam.m.v.w);
-		render_viewport(x0, y1, x1-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
+		render_viewport(x0, y1, x1-x0, y2-y1, &nx, &cam.m.v.y, &nz);
 		render_viewport(x1, y1, x2-x1, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw);
-		render_viewport(x2, y1, x3-x2, y2-y1, &nx, &cam.m.v.y, &nz);
+		render_viewport(x2, y1, x3-x2, y2-y1, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
 	} else {
 		render_viewport(x0, y0, x3-x0, y1-y0, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
 		render_viewport(x0, y1, x1-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw);
