@@ -19,7 +19,7 @@ clean-bin:
 	$(RM_F) $(BINNAME)
 
 $(BINNAME): $(OBJS)
-	$(CC) -o $(BINNAME) $(LDFLAGS) $(OBJS) $(LIBS)
+	$(CC) -o $(BINNAME) $(OBJS) $(LDFLAGS)
 
 %.o: %.c $(INCLUDES)
 	$(CC) -c -o $@ $(CFLAGS) $<

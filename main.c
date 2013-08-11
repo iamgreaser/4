@@ -266,10 +266,10 @@ void render_main(void)
 	{
 		render_screen();
 
-		const float vas = 0.03f;
+		const float vas = 0.06f;
 		cam_rotate_by(vayz*vas, vaxw*vas, vayw*vas);
 
-		const float vs = 0.1f;
+		const float vs = 0.06f;
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
@@ -373,10 +373,13 @@ void render_main(void)
 
 int main(int argc, char *argv[])
 {
+	const char *fname;
 	if(argc <= 1)
 	{
-		printf("%s dat/midbox.4lv (or something like that).\n", argv[0]);
-		return 99;
+		printf("%s dat/shortcut.4lv (or something like that).\n", argv[0]);
+		fname = "dat/shortcut.4lv";
+	} else {
+		fname = argv[1];
 	}
 
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO);
@@ -385,7 +388,7 @@ int main(int argc, char *argv[])
 	rtbuf = malloc(rtbuf_width * rtbuf_height * 4);
 
 	cam_init();
-	level_init(argv[1]);
+	level_init(fname);
 	render_main();
 
 	free(rtbuf);
