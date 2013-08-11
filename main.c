@@ -102,6 +102,7 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 #define MAX_IGN 100
 float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
 {
+	int i;
 	box_t *ign_l[MAX_IGN];
 	int ign_c = 0;
 	int ins;
@@ -157,14 +158,23 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 		if(ad >= md)
 			// we have. fail.
 			return -1.0f;
-		
+
 		// moving right along...
-		// TODO: clear the ignore buffer more efficiently
+		tp.m = _mm_add_ps(p->m, _mm_mul_ps(_mm_set1_ps(ad), v->m));
+		//tp.m = _mm_add_ps(tp.m, _mm_mul_ps(_mm_set1_ps(td), v->m));
+		
+#if 0
+		// remove old entries from ignore list
+		// XXX: this actually slows it down. let's NOT do this.
+		for(i = 0; i < ign_c; i++)
+			if(!box_in(ign_l[i], &tp))
+				ign_l[i--] = ign_l[ign_c--];
+#endif
+
+		// add our current box to the ignore list
 		ign_l[ign_c++] = box;
 		if(ign_c > 100)
 			abort();
-		tp.m = _mm_add_ps(p->m, _mm_mul_ps(_mm_set1_ps(ad), v->m));
-		//tp.m = _mm_add_ps(tp.m, _mm_mul_ps(_mm_set1_ps(td), v->m));
 
 		// check to see if we're in another box.
 		box_t *nbox = box_in_tree(box, &tp, ign_l, ign_c);
