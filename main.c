@@ -30,6 +30,7 @@ distribution.
 #define MAX_BOX 10000
 
 int mbutts = 0;
+int mrelease = 0;
 
 int fps_counter = 0;
 int fps_next_tick = 0;
@@ -342,6 +343,8 @@ void render_main(void)
 				break;
 
 			case SDL_MOUSEMOTION:
+				if(mrelease)
+					break;
 				if(mbutts & 4)
 				{
 					vayz += ev.motion.xrel;
@@ -382,6 +385,19 @@ void render_main(void)
 				case SDLK_ESCAPE:
 					quitflag = 1;
 					break;
+
+				case SDLK_F5:
+					if(mrelease)
+					{
+						SDL_WM_GrabInput(1);
+						SDL_ShowCursor(0);
+					} else {
+						SDL_ShowCursor(1);
+						SDL_WM_GrabInput(0);
+					}
+					mrelease = !mrelease;
+					break;
+
 				case SDLK_s:
 					vz = -1.0f;
 					break;
