@@ -102,7 +102,7 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 #define MAX_IGN 100
 float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
 {
-	int i;
+	int i; (void)i;
 	box_t *ign_l[MAX_IGN];
 	int ign_c = 0;
 	int ins;
