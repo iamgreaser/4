@@ -383,7 +383,7 @@ void render_main(void)
 			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r);
 			
 			(void)d;
-			//if(d >= 0.0f) md = d - r;
+			if(d >= 0.0f) md = d - r;
 
 			cam.o.m = _mm_add_ps(cam.o.m,
 				_mm_mul_ps(_mm_set1_ps(md), tv.m));
