@@ -53,6 +53,48 @@ void refresh_fps(void)
 	fps_next_tick += 1000;
 }
 
+float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v)
+{
+	box_t *box = *retbox;
+	float d = 0.0f;
+
+	// check if we're in this box.
+	if(!box_in(box, p))
+	{
+		// nope. can we trace to it?
+		d = box_crosses(box, p, v, NULL);
+
+		if(d < -1.0f)
+		{
+			// nope.
+			return -1.0f;
+		}
+	}
+
+	// check if pair
+	if(box->op == SHP_PAIR)
+	{
+		// yes. trace children.
+		box_t *b0 = box->c[0];
+		box_t *b1 = box->c[1];
+		float d0 = trace_into_box(&b0, p, v);
+		float d1 = trace_into_box(&b1, p, v);
+
+		if(d0 < 0.0f || (d1 >= 0.0f && d1 < d0))
+		{
+			if(d1 >= 0.0f) *retbox = b1;
+			return d1;
+		} else {
+			if(d0 >= 0.0f) *retbox = b0;
+			return d0;
+		}
+	} else {
+		// no. return distance.
+		*retbox = box;
+		return d;
+	}
+}
+
 #define MAX_IGN 100
 float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
 {
@@ -68,17 +110,35 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 		return -1.0f;
 	
 	// find the box we're tracing from within
+	box_t *obox = box;
 	box = box_in_tree(box, p, ign_l, ign_c);
 
-	// if this fails, we need to trace to the first surface we hit...
-	// TODO? not sure if this is necessary.
-	// at the moment, we're just going to fail, because you shouldn't be inside a SHP_ADD,
-	// and should always be inside at least one SHP_SUB.
-	if(box == NULL)
-		return -1.0f;
-
-	// otherwise, trace onwards.
+	// store trace position
 	tp.m = p->m;
+
+	// are we in anything?
+	if(box == NULL)
+	{
+		// trace inwards.
+		box = obox;
+		td = trace_into_box(&box, p, v);
+
+		// did we go anywhere?
+		if(td < 0.0f || td >= md)
+		{
+			// nope.
+			return -1.0f;
+		} else {
+			// yep.
+			// return the point.
+			if(retbox != NULL) *retbox = box;
+			if(inside != NULL) *inside = 0;
+			if(color != NULL) color->m = box->color.m;
+			return td;
+		}
+	}
+
+	// trace onwards.
 	for(;;)
 	{
 		// trace to the box end.
@@ -320,8 +380,8 @@ void render_main(void)
 			tno.m = cam.o.m;
 			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r);
 			
-			if(d >= 0.0f)
-				md = d - r;
+			(void)d;
+			if(d >= 0.0f) md = d - r;
 
 			cam.o.m = _mm_add_ps(cam.o.m,
 				_mm_mul_ps(_mm_set1_ps(md), tv.m));
