@@ -205,18 +205,21 @@ box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
 	if(box == NULL)
 		return NULL;
 	
-	// check if we're ignoring this box
-	for(i = 0; i < ignore_count; i++)
-		if(box == ignore[i])
-			return NULL;
-
 	// check if in this box,
 	if(!box_in(box, p))
 		return NULL;
 	
 	// check if we're a pair
 	if(box->op != SHP_PAIR)
+	{
+		// check if we're ignoring this box
+		for(i = 0; i < ignore_count; i++)
+			if(box == ignore[i])
+				return NULL;
+
+		// return.
 		return box;
+	}
 	
 	// traverse children
 	box_t *b = box_in_tree(box->c[0], p, ignore, ignore_count);
@@ -229,12 +232,16 @@ box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
 
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 {
-	// get centre
+	// get dims + centre
+	__m128 dims = _mm_sub_ps(box->v1.m, box->v0.m);
 	__m128 cent = _mm_mul_ps(_mm_add_ps(box->v0.m, box->v1.m), _mm_set1_ps(0.5f));
 
 	// get abs offset
 	__m128 offs = _mm_sub_ps(p->m, cent);
 	__m128 offs_abs = _mm_and_ps(offs, (__m128)_mm_set1_epi32(0x7FFFFFFF));
+	offs_abs = _mm_div_ps(offs_abs, dims);
+
+	// scale offset
 
 	// build mask
 	__m128 mask = _mm_and_ps(

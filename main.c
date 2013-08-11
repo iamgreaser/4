@@ -81,8 +81,10 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	{
 		// trace to the box end.
 		td = box_crosses(box, &tp, v, &ins);
-		if(td < 0.0f) // wat, pretty sure this should just crash and burn as an assertion
-			return -1.0f;
+
+		// ASSERTION.
+		if(td < 0.0f)
+			abort();
 
 		// check if we have exceeded our distance.
 		ad += td;
@@ -95,8 +97,8 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 		ign_l[ign_c++] = box;
 		if(ign_c > 100)
 			abort();
-		//tp.m = _mm_add_ps(p->m, _mm_mul_ps(_mm_set1_ps(ad), v->m));
-		tp.m = _mm_add_ps(tp.m, _mm_mul_ps(_mm_set1_ps(td), v->m));
+		tp.m = _mm_add_ps(p->m, _mm_mul_ps(_mm_set1_ps(ad), v->m));
+		//tp.m = _mm_add_ps(tp.m, _mm_mul_ps(_mm_set1_ps(td), v->m));
 
 		// check to see if we're in another box.
 		box_t *nbox = box_in_tree(root, &tp, ign_l, ign_c);
@@ -253,7 +255,7 @@ void render_main(void)
 	SDL_Event ev;
 
 	quitflag = 0;
-	float vaxy = 0.0f;
+	float vayz = 0.0f;
 	float vaxw = 0.0f;
 	float vayw = 0.0f;
 	float vx = 0.0f;
@@ -265,7 +267,7 @@ void render_main(void)
 		render_screen();
 
 		const float vas = 0.03f;
-		cam_rotate_by(vaxy*vas, vaxw*vas, vayw*vas);
+		cam_rotate_by(vayz*vas, vaxw*vas, vayw*vas);
 
 		const float vs = 0.1f;
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
@@ -302,7 +304,7 @@ void render_main(void)
 					
 				case SDLK_u:
 				case SDLK_o:
-					vaxy = 0.0f;
+					vayz = 0.0f;
 					break;
 				case SDLK_i:
 				case SDLK_k:
@@ -345,7 +347,7 @@ void render_main(void)
 					break;
 
 				case SDLK_u:
-					vaxy = -1.0f;
+					vayz = -1.0f;
 					break;
 				case SDLK_i:
 					vaxw = -1.0f;
@@ -354,7 +356,7 @@ void render_main(void)
 					vayw = -1.0f;
 					break;
 				case SDLK_o:
-					vaxy = +1.0f;
+					vayz = +1.0f;
 					break;
 				case SDLK_k:
 					vaxw = +1.0f;
