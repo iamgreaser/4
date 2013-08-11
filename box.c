@@ -186,7 +186,7 @@ int box_pair_touch(box_t *b0, box_t *b1)
 
 }
 
-box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
+box_t *box_in_tree_down(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
 {
 	int i;
 
@@ -211,12 +211,58 @@ box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
 	}
 	
 	// traverse children
-	box_t *b = box_in_tree(box->c[0], p, ignore, ignore_count);
+	box_t *b = box_in_tree_down(box->c[0], p, ignore, ignore_count);
 	if(b == NULL)
-		b = box_in_tree(box->c[1], p, ignore, ignore_count);
+		b = box_in_tree_down(box->c[1], p, ignore, ignore_count);
 	
 	// return
 	return b;
+}
+
+box_t *box_in_tree_up(box_t *box, v4f_t *p, box_t **ignore, int ignore_count, box_t *prev);
+box_t *box_in_tree_up(box_t *box, v4f_t *p, box_t **ignore, int ignore_count, box_t *prev)
+{
+	int i;
+
+	// check if null
+	if(box == NULL)
+		return NULL;
+	
+	// check if in this box
+	if(!box_in(box, p))
+		return box_in_tree_up(box->p, p, ignore, ignore_count, box);
+	
+	// check if we're a pair
+	if(box->op != SHP_PAIR)
+	{
+		// check if we're ignoring this box
+		int fail = 0;
+		for(i = 0; i < ignore_count; i++)
+			if(box == ignore[i])
+			{
+				fail = 1;
+				break;
+			}
+
+		if(!fail)
+			return box; // just return us.
+	}
+	
+	// trace down
+	box_t *b = NULL;
+	if(box->c[0] != prev)
+		b = box_in_tree_down(box->c[0], p, ignore, ignore_count);
+	if(b == NULL && box->c[1] != prev)
+		b = box_in_tree_down(box->c[1], p, ignore, ignore_count);
+	if(b == NULL)
+		b = box_in_tree_up(box->p, p, ignore, ignore_count, box);
+	
+	return b;
+}
+
+box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
+{
+	return box_in_tree_up(box, p, ignore, ignore_count, NULL);
 }
 
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)

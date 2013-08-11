@@ -167,7 +167,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 		//tp.m = _mm_add_ps(tp.m, _mm_mul_ps(_mm_set1_ps(td), v->m));
 
 		// check to see if we're in another box.
-		box_t *nbox = box_in_tree(root, &tp, ign_l, ign_c);
+		box_t *nbox = box_in_tree(box, &tp, ign_l, ign_c);
 		if(nbox == NULL || nbox->op != SHP_SUB)
 		{
 			// nope. let's end it here.
@@ -184,7 +184,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	}
 }
 
-uint32_t trace_pixel(float sx, float sy, v4f_t *dirx, v4f_t *diry, v4f_t *dirz)
+uint32_t trace_pixel(box_t *bstart, float sx, float sy, v4f_t *dirx, v4f_t *diry, v4f_t *dirz)
 {
 	v4f_t f;
 
@@ -203,10 +203,11 @@ uint32_t trace_pixel(float sx, float sy, v4f_t *dirx, v4f_t *diry, v4f_t *dirz)
 	color.m = _mm_add_ps(_mm_mul_ps(f.m, _mm_set1_ps(0.5f)), _mm_set1_ps(0.5f));
 
 	v4f_t p;
-	box_t *box = NULL;
-	p.m = cam.o.m;
 	int inside;
-	float d = trace_box(root, &p, &f, &color, &box, &inside, 100.0f);
+	box_t *box = NULL;
+
+	p.m = cam.o.m;
+	float d = trace_box(bstart, &p, &f, &color, &box, &inside, 100.0f);
 
 	if(d >= 0.0f)
 	{
@@ -240,12 +241,17 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 	float sxi = -sxd*w/2.0f;
 	float syi = -syd*h/2.0f;
 
+	// find starting box
+	box_t *bstart = box_in_tree(root, &cam.o, NULL, 0);
+	if(bstart == NULL) bstart = root;
+
 	// scale up onto screen
 	#pragma omp parallel for
 	for(y = 0; y < h; y++)
 	{
 		int x;
 		uint32_t *d0, *d1, *d2;
+		__attribute__((aligned(16))) uint32_t vs[4];
 
 		d0 = (uint32_t *)((screen->pixels) + screen->pitch*(0+3*(y+vy)) + 4*3*vx);
 		d1 = (uint32_t *)((screen->pixels) + screen->pitch*(1+3*(y+vy)) + 4*3*vx);
@@ -255,9 +261,55 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 
 		float sx = sxi;
 
-		for(x = 0; x < w; x++)
+		for(x = 0; x < w-3 && (((long)d0)&15) != 0; x++)
 		{
-			uint32_t v = trace_pixel(sx, sy, dx, dy, dz);
+			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz);
+
+			*(d0++) = v;
+			*(d0++) = v;
+			*(d0++) = v;
+			*(d1++) = v;
+			*(d1++) = v;
+			*(d1++) = v;
+			*(d2++) = v;
+			*(d2++) = v;
+			*(d2++) = v;
+
+			sx += sxd;
+		}
+
+		for(; x < w-3; x += 4)
+		{
+			vs[0] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
+			vs[1] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
+			vs[2] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
+			vs[3] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
+
+			__m128i pb = _mm_load_si128((__m128i *)vs);
+
+			// stream!
+			__m128i p0 = _mm_shuffle_epi32(pb, 0x40);
+			__m128i p1 = _mm_shuffle_epi32(pb, 0xA5);
+			_mm_stream_si128((__m128i *)d0, p0);
+			_mm_stream_si128((__m128i *)d1, p0);
+			_mm_stream_si128((__m128i *)d2, p0);
+			d0 += 4; d1 += 4; d2 += 4;
+
+			__m128i p2 = _mm_shuffle_epi32(pb, 0xFE);
+			_mm_stream_si128((__m128i *)d0, p1);
+			_mm_stream_si128((__m128i *)d1, p1);
+			_mm_stream_si128((__m128i *)d2, p1);
+			d0 += 4; d1 += 4; d2 += 4;
+
+			_mm_stream_si128((__m128i *)d0, p2);
+			_mm_stream_si128((__m128i *)d1, p2);
+			_mm_stream_si128((__m128i *)d2, p2);
+			d0 += 4; d1 += 4; d2 += 4;
+		}
+
+		for(; x < w; x++)
+		{
+			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz);
 
 			*(d0++) = v;
 			*(d0++) = v;
