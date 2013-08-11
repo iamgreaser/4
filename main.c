@@ -29,6 +29,8 @@ distribution.
 
 #define MAX_BOX 10000
 
+int mbutts = 0;
+
 int fps_counter = 0;
 int fps_next_tick = 0;
 box_t *root = NULL;
@@ -224,7 +226,7 @@ void level_init(const char *fname)
 void render_screen(void)
 {
 	int y0 = 0;
-	int y1 = rtbuf_height/4;
+	int y1 = rtbuf_height*3/4;
 	int y2 = rtbuf_height;
 
 	int x0 = 0;
@@ -232,18 +234,26 @@ void render_screen(void)
 	int x2 = rtbuf_width*2/3;
 	int x3 = rtbuf_width;
 
-	v4f_t nx, ny, nz, nw;
+	v4f_t nx,  nz, nw;
 	nx.m = _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(-1.0f));
-	ny.m = _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(-1.0f));
+	//ny.m = _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(-1.0f));
 	nz.m = _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(-1.0f));
 	nw.m = _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(-1.0f));
 
 	SDL_LockSurface(screen);
 
-	render_viewport(x0, y1, x3-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
-	render_viewport(x0, y0, x1-x0, y1-y0, &cam.m.v.x, &cam.m.v.y, &nw);
-	render_viewport(x1, y0, x2-x1, y1-y0, &nx, &cam.m.v.y, &nz);
-	render_viewport(x2, y0, x3-x2, y1-y0, &nx, &cam.m.v.y, &cam.m.v.w);
+	if(mbutts & 4)
+	{
+		render_viewport(x0, y0, x3-x0, y1-y0, &nx, &cam.m.v.y, &cam.m.v.w);
+		render_viewport(x0, y1, x1-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
+		render_viewport(x1, y1, x2-x1, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw);
+		render_viewport(x2, y1, x3-x2, y2-y1, &nx, &cam.m.v.y, &nz);
+	} else {
+		render_viewport(x0, y0, x3-x0, y1-y0, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
+		render_viewport(x0, y1, x1-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw);
+		render_viewport(x1, y1, x2-x1, y2-y1, &nx, &cam.m.v.y, &nz);
+		render_viewport(x2, y1, x3-x2, y2-y1, &nx, &cam.m.v.y, &cam.m.v.w);
+	}
 
 	SDL_UnlockSurface(screen);
 
@@ -262,6 +272,7 @@ void render_main(void)
 	SDL_Event ev;
 
 	quitflag = 0;
+	float vaxz = 0.0f;
 	float vayz = 0.0f;
 	float vaxw = 0.0f;
 	float vayw = 0.0f;
@@ -273,8 +284,9 @@ void render_main(void)
 	{
 		render_screen();
 
-		const float vas = 0.02f;
-		cam_rotate_by(vayz*vas, vaxw*vas, vayw*vas);
+		const float vas = 0.002f;
+		cam_rotate_by(vaxz*vas, vayz*vas, vaxw*vas, vayw*vas);
+		vaxz = vayz = vaxw = vayw = 0.0f;
 
 		const float vs = 0.02f;
 
@@ -284,10 +296,18 @@ void render_main(void)
 			// trace motion
 			v4f_t no, tno, tv;
 			no.m = _mm_setzero_ps();
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vw*vs)));
+			if(mbutts & 4)
+			{
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(-vx*vs)));
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vw*vs)));
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vz*vs)));
+			} else {
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
+				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vw*vs)));
+			}
 
 			// normalise for direction
 			tv.m = no.m;
@@ -313,6 +333,25 @@ void render_main(void)
 				quitflag = 1;
 				break;
 
+			case SDL_MOUSEBUTTONDOWN:
+				mbutts |= (1<<(ev.button.button-1));
+				break;
+
+			case SDL_MOUSEBUTTONUP:
+				mbutts &= ~(1<<(ev.button.button-1));
+				break;
+
+			case SDL_MOUSEMOTION:
+				if(mbutts & 4)
+				{
+					vayz += ev.motion.xrel;
+					vaxz += ev.motion.yrel;
+				} else {
+					vayw += ev.motion.xrel;
+					vaxw += ev.motion.yrel;
+				}
+				break;
+
 			case SDL_KEYUP:
 			switch(ev.key.keysym.sym)
 			{
@@ -332,19 +371,7 @@ void render_main(void)
 				case SDLK_SPACE:
 					vy = 0.0f;
 					break;
-					
-				case SDLK_u:
-				case SDLK_o:
-					vayz = 0.0f;
-					break;
-				case SDLK_i:
-				case SDLK_k:
-					vaxw = 0.0f;
-					break;
-				case SDLK_j:
-				case SDLK_l:
-					vayw = 0.0f;
-					break;
+
 				default:
 					break;
 			} break;
@@ -379,25 +406,7 @@ void render_main(void)
 				case SDLK_LCTRL:
 					vy = +1.0f;
 					break;
-
-				case SDLK_u:
-					vayz = -1.0f;
-					break;
-				case SDLK_i:
-					vaxw = -1.0f;
-					break;
-				case SDLK_j:
-					vayw = -1.0f;
-					break;
-				case SDLK_o:
-					vayz = +1.0f;
-					break;
-				case SDLK_k:
-					vaxw = +1.0f;
-					break;
-				case SDLK_l:
-					vayw = +1.0f;
-					break;
+				
 				default:
 					break;
 			} break;
@@ -423,9 +432,11 @@ int main(int argc, char *argv[])
 	cam_init();
 	level_init(fname);
 
-	//SDL_WM_GrabInput(1);
+	SDL_WM_GrabInput(1);
+	SDL_ShowCursor(0);
 	render_main();
-	//SDL_WM_GrabInput(0);
+	SDL_ShowCursor(1);
+	SDL_WM_GrabInput(0);
 
 	return 0;
 }

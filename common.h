@@ -139,5 +139,5 @@ void vec_norm(v4f_t *v);
 void mat_ident(m4f_t *m);
 void mat_mul(m4f_t *a, m4f_t *b);
 uint32_t color_vec_sse(__m128 v);
-void cam_rotate_by(float axy, float axw, float ayw);
+void cam_rotate_by(float axz, float ayz, float axw, float ayw);
 
