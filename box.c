@@ -250,7 +250,7 @@ void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 	vec_norm(n);
 }
 
-float box_crosses_outside(box_t *box, v4f_t *p, v4f_t *vi)
+float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 {
 	// the general idea:
 	// define the "out" faces to be in the direction of the ray velocity.
@@ -305,124 +305,16 @@ float box_crosses_outside(box_t *box, v4f_t *p, v4f_t *vi)
 	float dco = -(c0.a[2] > c0.a[3] ? c0.a[2] : c0.a[3]);
 	
 	// return appropriately
-	return (dci < dco ? dci : -1.0f);
-}
-
-float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
-{
-	// copy vi so we don't mutilate it
-	v4f_t vz;
-	v4f_t *v;
-	vz.m = vi->m;
-	v = &vz;
-
-	// determine what faces are "in" or "out"
-	v4f_t cmp0, cmp1;
-	cmp0.m = _mm_cmpge_ps(p->m, box->v0.m);
-	cmp1.m = _mm_cmpge_ps(box->v1.m, p->m);
-
-	int outmask = (_mm_movemask_ps(cmp0.m) | (_mm_movemask_ps(cmp1.m) << 4));
-
-	// check if we are inside this box (?)
-	int start_inside = (outmask == 0xFF);
-	
-	// get deltas
-	__m128 d0 = _mm_sub_ps(box->v0.m, p->m);
-	__m128 d1 = _mm_sub_ps(box->v1.m, p->m);
-
-	// mask them
-	v4f_t m0, m1;
-	m0.m = _mm_cmpgt_ps(_mm_mul_ps(v->m, d0), _mm_setzero_ps());
-	m1.m = _mm_cmpgt_ps(_mm_mul_ps(v->m, d1), _mm_setzero_ps());
-
-	int colmask = (_mm_movemask_ps(m0.m) | (_mm_movemask_ps(m1.m) << 4));
-
-	// check if we can hit an in face
-	if((!start_inside) && (colmask & ~outmask) == 0)
+	if(dco < dci)
 		return -1.0f;
 	
-	// get abs velocity
-	v->m = _mm_max_ps(_mm_and_ps(v->m, (__m128)_mm_set1_epi32(0x7FFFFFFF)), _mm_set1_ps(0.00001f));
-
-	// get abs deltas
-	d0 = _mm_and_ps(d0, (__m128)_mm_set1_epi32(0x7FFFFFFF));
-	d1 = _mm_and_ps(d1, (__m128)_mm_set1_epi32(0x7FFFFFFF));
-
-	// get base time to plane
-	__m128 tb0 = _mm_div_ps(d0, v->m);
-	__m128 tb1 = _mm_div_ps(d1, v->m);
-
-	// loop
-	for(;;)
+	if(dci <= 0.0f)
 	{
-		// get masked out time to plane
-		// add a large value for stuff we can't touch
-		v4f_t t0, t1;
-		t0.m = _mm_add_ps(tb0, _mm_andnot_ps(m0.m, _mm_set1_ps(1000000000.0f)));
-		t1.m = _mm_add_ps(tb1, _mm_andnot_ps(m1.m, _mm_set1_ps(1000000000.0f)));
-
-		// find the first thing we hit
-		int idx0, idx1;
-
-		if(t0.v.x < t0.v.y && t0.v.x < t0.v.z && t0.v.x < t0.v.w)
-			idx0 = F_XN;
-		else if(t0.v.y < t0.v.z && t0.v.y < t0.v.w)
-			idx0 = F_YN;
-		else if(t0.v.z < t0.v.w)
-			idx0 = F_ZN;
-		else
-			idx0 = F_WN;
-
-		if(t1.v.x < t1.v.y && t1.v.x < t1.v.z && t1.v.x < t1.v.w)
-			idx1 = F_XP;
-		else if(t1.v.y < t1.v.z && t1.v.y < t1.v.w)
-			idx1 = F_YP;
-		else if(t1.v.z < t1.v.w)
-			idx1 = F_ZP;
-		else
-			idx1 = F_WP;
-		
-		// get index + distance
-		int idx;
-		float minv;
-		if(t0.a[idx0] <= t1.a[idx1&3])
-		{
-			idx = idx0;
-			minv = t0.a[idx0];
-		} else {
-			idx = idx1;
-			minv = t1.a[idx1&3];
-		}
-
-		// check if we started off inside this object - if so, give distance to plane NOW.
-		if(start_inside)
-		{
-			if(inside != NULL) *inside = 1;
-			return minv;
-		}
-
-		// check if this plane is an out plane - if so, FAIL.
-		if(((1<<idx)&(~outmask)&colmask) == 0)
-			return -1.0f;
-
-		// remove this plane from colmask and add it to outmask
-		colmask &= ~(1<<idx);
-		outmask |= (1<<idx);
-
-		// if outmask is 0xFF, we've FINALLY reached the inside of the volume - RETURN DISTANCE
-		if((outmask&0xFF) == 0xFF)
-		{
-			if(inside != NULL) *inside = 0;
-			return minv;
-		}
-
-		// mask this out
-		if(idx < 4)
-			m0.a[idx] = 0.0f;
-		else
-			m1.a[idx&3] = 0.0f;
-
-		// loop around!
+		if(inside != NULL) *inside = 1;
+		return dco;
+	} else {
+		if(inside != NULL) *inside = 0;
+		return dci;
 	}
 }
 

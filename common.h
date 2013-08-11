@@ -127,7 +127,6 @@ int box_in(box_t *box, v4f_t *p);
 int box_pair_touch(box_t *b0, box_t *b1);
 box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count);
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside);
-float box_crosses_outside(box_t *box, v4f_t *p, v4f_t *vi);
 float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside);
 
 // level.c
