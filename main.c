@@ -107,9 +107,9 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 			if(nbox == NULL)
 				nbox = box;
 
-			*retbox = nbox;
-			*inside = ins;
-			color->m = nbox->color.m;
+			if(retbox != NULL) *retbox = nbox;
+			if(inside != NULL) *inside = ins;
+			if(color != NULL) color->m = nbox->color.m;
 			return ad;
 		}
 
@@ -117,15 +117,15 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	}
 }
 
-uint32_t trace_pixel(float sx, float sy)
+uint32_t trace_pixel(float sx, float sy, v4f_t *dirx, v4f_t *diry, v4f_t *dirz)
 {
 	v4f_t f;
 
 	f.m = _mm_add_ps(
-		cam.m.v.z.m,
+		dirz->m,
 		_mm_add_ps(
-			_mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(sx)),
-			_mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(sy))
+			_mm_mul_ps(dirx->m, _mm_set1_ps(sx)),
+			_mm_mul_ps(diry->m, _mm_set1_ps(sy))
 		));
 	
 	// normalise
@@ -164,30 +164,25 @@ uint32_t trace_pixel(float sx, float sy)
 	return color_vec_sse(color.m);
 }
 
-void render_screen(void)
+void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *dz)
 {
 	int y;
 
-	float sxd = (2.0f)/(rtbuf_width/2.0f);
-	float syd = (2.0f)/(rtbuf_width/2.0f);
-	float sxi = -sxd*rtbuf_width/2.0f;
-	float syi = -syd*rtbuf_height/2.0f;
+	float sxd = (2.0f)/(w/2.0f);
+	float syd = (2.0f)/(w/2.0f);
+	float sxi = -sxd*w/2.0f;
+	float syi = -syd*h/2.0f;
 
 	// scale up onto screen
-	SDL_LockSurface(screen);
-
-	const int w = rtbuf_width;
-	const int h = rtbuf_height;
-
 	#pragma omp parallel for
 	for(y = 0; y < h; y++)
 	{
 		int x;
 		uint32_t *d0, *d1, *d2;
 
-		d0 = (uint32_t *)((screen->pixels) + screen->pitch*(0+3*y) + 4*3*0);
-		d1 = (uint32_t *)((screen->pixels) + screen->pitch*(1+3*y) + 4*3*0);
-		d2 = (uint32_t *)((screen->pixels) + screen->pitch*(2+3*y) + 4*3*0);
+		d0 = (uint32_t *)((screen->pixels) + screen->pitch*(0+3*(y+vy)) + 4*3*vx);
+		d1 = (uint32_t *)((screen->pixels) + screen->pitch*(1+3*(y+vy)) + 4*3*vx);
+		d2 = (uint32_t *)((screen->pixels) + screen->pitch*(2+3*(y+vy)) + 4*3*vx);
 
 		float sy = syi + syd*y;
 
@@ -195,7 +190,7 @@ void render_screen(void)
 
 		for(x = 0; x < w; x++)
 		{
-			uint32_t v = trace_pixel(sx, sy);
+			uint32_t v = trace_pixel(sx, sy, dx, dy, dz);
 
 			*(d0++) = v;
 			*(d0++) = v;
@@ -212,14 +207,6 @@ void render_screen(void)
 
 		sy += syd;
 	}
-
-	SDL_UnlockSurface(screen);
-
-	SDL_Flip(screen);
-
-	fps_counter++;
-	if(SDL_GetTicks() >= fps_next_tick)
-		refresh_fps();
 }
 
 void cam_init(void)
@@ -232,6 +219,39 @@ void level_init(const char *fname)
 {
 	root = level_load_fname(fname);
 	box_print(root, 0);
+}
+
+void render_screen(void)
+{
+	int y0 = 0;
+	int y1 = rtbuf_height/4;
+	int y2 = rtbuf_height;
+
+	int x0 = 0;
+	int x1 = rtbuf_width/3;
+	int x2 = rtbuf_width*2/3;
+	int x3 = rtbuf_width;
+
+	v4f_t nx, ny, nz, nw;
+	nx.m = _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(-1.0f));
+	ny.m = _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(-1.0f));
+	nz.m = _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(-1.0f));
+	nw.m = _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(-1.0f));
+
+	SDL_LockSurface(screen);
+
+	render_viewport(x0, y1, x3-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
+	render_viewport(x0, y0, x1-x0, y1-y0, &cam.m.v.x, &cam.m.v.y, &nw);
+	render_viewport(x1, y0, x2-x1, y1-y0, &nx, &cam.m.v.y, &nz);
+	render_viewport(x2, y0, x3-x2, y1-y0, &nx, &cam.m.v.y, &cam.m.v.w);
+
+	SDL_UnlockSurface(screen);
+
+	SDL_Flip(screen);
+
+	fps_counter++;
+	if(SDL_GetTicks() >= fps_next_tick)
+		refresh_fps();
 }
 
 void render_main(void)
@@ -257,10 +277,34 @@ void render_main(void)
 		cam_rotate_by(vayz*vas, vaxw*vas, vayw*vas);
 
 		const float vs = 0.02f;
-		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
-		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
-		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
-		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vw*vs)));
+
+		// check velocity
+		if(vx*vx + vy*vy + vz*vz + vw*vw > 0.000001f)
+		{
+			// trace motion
+			v4f_t no, tno, tv;
+			no.m = _mm_setzero_ps();
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vw*vs)));
+
+			// normalise for direction
+			tv.m = no.m;
+			vec_norm(&tv);
+
+			// cast a ray
+			float r = 0.2f;
+			float md = sqrtf(vx*vx + vy*vy + vz*vz + vw*vw)*vs;
+			tno.m = cam.o.m;
+			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r);
+			
+			if(d >= 0.0f)
+				md = d - r;
+
+			cam.o.m = _mm_add_ps(cam.o.m,
+				_mm_mul_ps(_mm_set1_ps(md), tv.m));
+		}
 
 		while(SDL_PollEvent(&ev))
 		switch(ev.type)
@@ -308,6 +352,9 @@ void render_main(void)
 			case SDL_KEYDOWN:
 			switch(ev.key.keysym.sym)
 			{
+				case SDLK_ESCAPE:
+					quitflag = 1;
+					break;
 				case SDLK_s:
 					vz = -1.0f;
 					break;
@@ -375,7 +422,10 @@ int main(int argc, char *argv[])
 
 	cam_init();
 	level_init(fname);
+
+	//SDL_WM_GrabInput(1);
 	render_main();
+	//SDL_WM_GrabInput(0);
 
 	return 0;
 }
