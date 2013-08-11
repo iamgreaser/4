@@ -225,7 +225,7 @@ box_t *box_in_tree_up(box_t *box, v4f_t *p, box_t **ignore, int ignore_count, bo
 	int i;
 
 	// check if null
-	if(box == NULL)
+	if(box == NULL || box->op == SHP_SCENE_LIST)
 		return NULL;
 	
 	// check if in this box

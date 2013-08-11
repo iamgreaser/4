@@ -51,6 +51,8 @@ distribution.
 
 enum
 {
+	SHP_SCENE_LIST,
+
 	SHP_PAIR,
 
 	SHP_ADD,

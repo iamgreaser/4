@@ -290,20 +290,20 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 			// stream!
 			__m128i p0 = _mm_shuffle_epi32(pb, 0x40);
 			__m128i p1 = _mm_shuffle_epi32(pb, 0xA5);
-			_mm_stream_si128((__m128i *)d0, p0);
-			_mm_stream_si128((__m128i *)d1, p0);
-			_mm_stream_si128((__m128i *)d2, p0);
+			_mm_store_si128((__m128i *)d0, p0);
+			_mm_store_si128((__m128i *)d1, p0);
+			_mm_store_si128((__m128i *)d2, p0);
 			d0 += 4; d1 += 4; d2 += 4;
 
 			__m128i p2 = _mm_shuffle_epi32(pb, 0xFE);
-			_mm_stream_si128((__m128i *)d0, p1);
-			_mm_stream_si128((__m128i *)d1, p1);
-			_mm_stream_si128((__m128i *)d2, p1);
+			_mm_store_si128((__m128i *)d0, p1);
+			_mm_store_si128((__m128i *)d1, p1);
+			_mm_store_si128((__m128i *)d2, p1);
 			d0 += 4; d1 += 4; d2 += 4;
 
-			_mm_stream_si128((__m128i *)d0, p2);
-			_mm_stream_si128((__m128i *)d1, p2);
-			_mm_stream_si128((__m128i *)d2, p2);
+			_mm_store_si128((__m128i *)d0, p2);
+			_mm_store_si128((__m128i *)d1, p2);
+			_mm_store_si128((__m128i *)d2, p2);
 			d0 += 4; d1 += 4; d2 += 4;
 		}
 
