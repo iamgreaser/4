@@ -36,24 +36,13 @@ float box_volume(box_t *b)
 	return v.v.x * v.v.y * v.v.z * v.v.w;
 }
 
-void box_depth_change_up(box_t *b, int d)
+void box_depth_change_up(box_t *b)
 {
 	if(b == NULL)
 		return;
 	
-	b->depth += d;
-	return box_depth_change_up(b->p, d);
-}
-
-void box_depth_change_down(box_t *b, int d)
-{
-	if(b == NULL)
-		return;
-	
-	b->depth += d;
-
-	box_depth_change_down(b->c[0], d);
-	return box_depth_change_down(b->c[1], d);
+	b->depth = b->c[(b->c[0]->depth > b->c[1]->depth ? 0 : 1)]->depth + 1;
+	return box_depth_change_up(b->p);
 }
 
 void box_free(box_t *b)
@@ -170,7 +159,7 @@ box_t *box_inject(box_t *r, box_t *b)
 	p->p = r->p;
 	r->p = b->p = p;
 	p->depth = p->c[p->c[0]->depth > p->c[1]->depth ? 0 : 1]->depth + 1;
-	box_depth_change_up(p->p, 1);
+	box_depth_change_up(p->p);
 	return p;
 }
 
@@ -304,6 +293,9 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 	// get base time to plane
 	__m128 tb0 = _mm_div_ps(d0, v->m);
 	__m128 tb1 = _mm_div_ps(d1, v->m);
+
+	// TODO: suggested optimisation to apply:
+	// if max(in_dist) < min(out_dist), then we are inside the box.
 
 	// loop
 	for(;;)
