@@ -31,6 +31,9 @@ distribution.
 // pretty sure ymmintrin is NOT AVX (SSE2 perhaps?).
 #include <immintrin.h>
 
+// we'll need this for an extra speed boost on multicore systems :)
+#include <omp.h>
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -44,6 +47,7 @@ distribution.
 #ifndef __SSE2__
 #error "SSE2 is required to compile + run this. Use the -msse2 flag in GCC."
 #endif
+
 
 enum
 {

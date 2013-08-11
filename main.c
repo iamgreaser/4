@@ -34,7 +34,6 @@ int fps_next_tick = 0;
 box_t *root = NULL;
 
 SDL_Surface *screen = NULL;
-uint32_t *rtbuf = NULL;
 int rtbuf_width = 320;
 int rtbuf_height = 240;
 int rtbuf_scale = 3;
@@ -167,63 +166,51 @@ uint32_t trace_pixel(float sx, float sy)
 
 void render_screen(void)
 {
-	int x,y;
-	uint32_t *p = rtbuf;
-	SDL_LockSurface(screen);
+	int y;
+
 	float sxd = (2.0f)/(rtbuf_width/2.0f);
 	float syd = (2.0f)/(rtbuf_width/2.0f);
 	float sxi = -sxd*rtbuf_width/2.0f;
 	float syi = -syd*rtbuf_height/2.0f;
 
-	float sy = syi;
-	/*
-	printf("%f %f %f %f\n", cam.m.v.x.v.x, cam.m.v.x.v.y, cam.m.v.x.v.z, cam.m.v.x.v.w);
-	printf("%f %f %f %f\n", cam.m.v.y.v.x, cam.m.v.y.v.y, cam.m.v.y.v.z, cam.m.v.y.v.w);
-	printf("%f %f %f %f\n", cam.m.v.z.v.x, cam.m.v.z.v.y, cam.m.v.z.v.z, cam.m.v.z.v.w);
-	*/
-	//printf("%f %f %f %f\n", cam.m.v.z.v.x, cam.m.v.z.v.y, cam.m.v.z.v.z, cam.m.v.z.v.w);
-	for(y = 0; y < rtbuf_height; y++)
+	// scale up onto screen
+	SDL_LockSurface(screen);
+
+	const int w = rtbuf_width;
+	const int h = rtbuf_height;
+
+	#pragma omp parallel for
+	for(y = 0; y < h; y++)
 	{
+		int x;
+		uint32_t *d0, *d1, *d2;
+
+		d0 = (uint32_t *)((screen->pixels) + screen->pitch*(0+3*y) + 4*3*0);
+		d1 = (uint32_t *)((screen->pixels) + screen->pitch*(1+3*y) + 4*3*0);
+		d2 = (uint32_t *)((screen->pixels) + screen->pitch*(2+3*y) + 4*3*0);
+
+		float sy = syi + syd*y;
+
 		float sx = sxi;
 
-		for(x = 0; x < rtbuf_width; x++)
+		for(x = 0; x < w; x++)
 		{
-			*(p++) = trace_pixel(sx, sy);
+			uint32_t v = trace_pixel(sx, sy);
+
+			*(d0++) = v;
+			*(d0++) = v;
+			*(d0++) = v;
+			*(d1++) = v;
+			*(d1++) = v;
+			*(d1++) = v;
+			*(d2++) = v;
+			*(d2++) = v;
+			*(d2++) = v;
+
 			sx += sxd;
 		}
 
 		sy += syd;
-	}
-
-	// scale up onto screen
-	uint32_t *d0, *d1, *d2;
-	d0 = screen->pixels;
-	d1 = (uint32_t *)((screen->pixels) + screen->pitch);
-	d2 = (uint32_t *)((screen->pixels) + screen->pitch*2);
-	int pitch = screen->pitch*3/4 - screen->w;
-
-	SDL_LockSurface(screen);
-
-	p = rtbuf;
-	for(y = 0; y < rtbuf_height; y++)
-	{
-		for(x = 0; x < rtbuf_width; x++)
-		{
-			uint32_t v = *(p++);
-			*(d0++) = v;
-			*(d0++) = v;
-			*(d0++) = v;
-			*(d1++) = v;
-			*(d1++) = v;
-			*(d1++) = v;
-			*(d2++) = v;
-			*(d2++) = v;
-			*(d2++) = v;
-		}
-
-		d0 += pitch;
-		d1 += pitch;
-		d2 += pitch;
 	}
 
 	SDL_UnlockSurface(screen);
@@ -266,10 +253,10 @@ void render_main(void)
 	{
 		render_screen();
 
-		const float vas = 0.06f;
+		const float vas = 0.02f;
 		cam_rotate_by(vayz*vas, vaxw*vas, vayw*vas);
 
-		const float vs = 0.06f;
+		const float vs = 0.02f;
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
 		cam.o.m = _mm_add_ps(cam.o.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
@@ -385,13 +372,10 @@ int main(int argc, char *argv[])
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO);
 	SDL_WM_SetCaption("4 (pronounced \"sardinelauncher\")", NULL);
 	screen = SDL_SetVideoMode(rtbuf_width * rtbuf_scale, rtbuf_height * rtbuf_scale, 32, 0);
-	rtbuf = malloc(rtbuf_width * rtbuf_height * 4);
 
 	cam_init();
 	level_init(fname);
 	render_main();
-
-	free(rtbuf);
 
 	return 0;
 }
