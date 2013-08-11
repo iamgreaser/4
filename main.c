@@ -53,7 +53,7 @@ void refresh_fps(void)
 	fps_next_tick += 1000;
 }
 
-float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v)
+float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 {
 	box_t *box = *retbox;
 	float d = 0.0f;
@@ -64,7 +64,7 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v)
 		// nope. can we trace to it?
 		d = box_crosses(box, p, v, NULL);
 
-		if(d < -1.0f)
+		if(d < -1.0f || d >= md)
 		{
 			// nope.
 			return -1.0f;
@@ -77,8 +77,10 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v)
 		// yes. trace children.
 		box_t *b0 = box->c[0];
 		box_t *b1 = box->c[1];
-		float d0 = trace_into_box(&b0, p, v);
-		float d1 = trace_into_box(&b1, p, v);
+		float d0 = trace_into_box(&b0, p, v, md);
+		if(d0 >= 0.0f)
+			md = d0;
+		float d1 = trace_into_box(&b1, p, v, md);
 
 		if(d0 < 0.0f || (d1 >= 0.0f && d1 < d0))
 		{
@@ -121,7 +123,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	{
 		// trace inwards.
 		box = obox;
-		td = trace_into_box(&box, p, v);
+		td = trace_into_box(&box, p, v, md);
 
 		// did we go anywhere?
 		if(td < 0.0f || td >= md)
@@ -381,7 +383,7 @@ void render_main(void)
 			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r);
 			
 			(void)d;
-			if(d >= 0.0f) md = d - r;
+			//if(d >= 0.0f) md = d - r;
 
 			cam.o.m = _mm_add_ps(cam.o.m,
 				_mm_mul_ps(_mm_set1_ps(md), tv.m));
