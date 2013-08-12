@@ -29,6 +29,10 @@ distribution.
 
 #define MAX_BOX 10000
 
+// TODO: move these two to the camera (well, a player entity, that is)
+float grav_v = 0.0f;
+int grounded = 0;
+
 int mbutts = 0;
 int mrelease = 0;
 
@@ -198,10 +202,55 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	}
 }
 
+void trace_main(int bouncerem, box_t *bstart, box_t *bign, v4f_t *p, v4f_t *f, v4f_t *cf, v4f_t *color, float md)
+{
+	int side;
+	int inside;
+	box_t *box = bign;
+
+	if(bouncerem-- <= 0)
+		return;
+
+	v4f_t rcolor;
+	rcolor.m = color->m;
+	float d = trace_box(bstart, p, f, &rcolor, &box, &inside, md, &side);
+
+	if(d >= 0.0f)
+	{
+		// move position
+		v4f_t np;
+		np.m = _mm_add_ps(p->m, _mm_mul_ps(
+			f->m, _mm_set1_ps(d-0.01f)));
+
+		// calculate normal
+		v4f_t n;
+		n.m = _mm_setzero_ps();
+		n.a[side&3] = ((side & 4) ? 1.0f : -1.0f) * (inside ? 1.0f : -1.0f);
+
+		// calculate diffuse (against one point for now)
+		v4f_t dc;
+		dc.m = _mm_mul_ps(f->m, n.m);
+		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
+
+		// bounce
+		v4f_t ncolor, fb;
+		fb.m = f->m;
+		fb.a[side&3] *= -1.0f;
+		ncolor.m = _mm_setzero_ps();
+		trace_main(bouncerem, box, NULL, &np, &fb, cf, &ncolor, md - d);
+
+		// multiply diffuse
+		color->m = _mm_add_ps(
+			_mm_mul_ps(ncolor.m, _mm_set1_ps(0.3f)),
+			_mm_mul_ps(rcolor.m, _mm_set1_ps(diff*0.7f))
+		);
+
+	}
+}
+
 uint32_t trace_pixel(box_t *bstart, float sx, float sy, v4f_t *dirx, v4f_t *diry, v4f_t *dirz)
 {
 	v4f_t f;
-	int side;
 
 	f.m = _mm_add_ps(
 		dirz->m,
@@ -218,34 +267,9 @@ uint32_t trace_pixel(box_t *bstart, float sx, float sy, v4f_t *dirx, v4f_t *diry
 	color.m = _mm_add_ps(_mm_mul_ps(f.m, _mm_set1_ps(0.5f)), _mm_set1_ps(0.5f));
 
 	v4f_t p;
-	int inside;
-	box_t *box = NULL;
-
 	p.m = cam.o.m;
-	float d = trace_box(bstart, &p, &f, &color, &box, &inside, 100.0f, &side);
 
-	if(d >= 0.0f)
-	{
-		// move position
-		/*
-		p.m = _mm_add_ps(p.m, _mm_mul_ps(
-			f.m, _mm_set1_ps(d)));
-		*/
-
-		// calculate normal
-		v4f_t n;
-		//box_normal(box, &p, &n, inside);
-		n.m = _mm_setzero_ps();
-		n.a[side&3] = ((side & 4) ? 1.0f : -1.0f) * (inside ? 1.0f : -1.0f);
-
-		// calculate diffuse (against one point for now)
-		v4f_t dc;
-		dc.m = _mm_mul_ps(f.m, n.m);
-		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
-
-		// multiply diffuse
-		color.m = _mm_mul_ps(color.m, _mm_set1_ps(diff));
-	}
+	trace_main(3, bstart, NULL, &p, &f, &f, &color, 100.0f);
 
 	return color_vec_sse(color.m);
 }
@@ -423,34 +447,44 @@ void render_main(void)
 		cam_rotate_by(vaxz*vas, vayz*vas, vaxw*vas, vayw*vas);
 		vaxz = vayz = vaxw = vayw = 0.0f;
 
-		const float vs = 0.02f;
+		const float vs = 0.2f;
 
-		// check velocity
-		if(vx*vx + vy*vy + vz*vz + vw*vw > 0.000001f)
+		// trace motion
+		v4f_t no, tno, tv;
+		no.m = _mm_setzero_ps();
+		if(mbutts & 4)
 		{
-			// trace motion
-			v4f_t no, tno, tv;
-			no.m = _mm_setzero_ps();
-			if(mbutts & 4)
-			{
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(-vx*vs)));
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vw*vs)));
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vz*vs)));
-			} else {
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
-				no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vw*vs)));
-			}
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(-vx*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vw*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vz*vs)));
+		} else {
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.x.m, _mm_set1_ps(vx*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.y.m, _mm_set1_ps(vy*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.z.m, _mm_set1_ps(vz*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam.m.v.w.m, _mm_set1_ps(vw*vs)));
+		}
 
+		// add gravity
+		grav_v += 0.30f*vs*vs;
+		if(grav_v > 0.5f)
+			grav_v = 0.5f;
+		no.v.y = grav_v;
+
+		// check distance
+		v4f_t tv2;
+		tv2.m = _mm_mul_ps(no.m, no.m);
+		//float md = sqrtf(vx*vx + vy*vy + vz*vz + vw*vw)*vs;
+		float md = tv2.v.x + tv2.v.y + tv2.v.z + tv2.v.w;
+
+		if(md > 0.0000001f)
+		{
 			// normalise for direction
 			tv.m = no.m;
 			vec_norm(&tv);
 
 			// cast a ray
 			float r = 0.2f;
-			float md = sqrtf(vx*vx + vy*vy + vz*vz + vw*vw)*vs;
 			tno.m = cam.o.m;
 			int side;
 
@@ -472,6 +506,18 @@ void render_main(void)
 					break;
 				} else {
 					// we've hit a plane. slide back.
+					if(side == F_YP)
+					{
+						if(grav_v >= 0.0f)
+						{
+							grav_v = 0.0f;
+							grounded = 1;
+						}
+					} else if(side == F_YN) {
+						if(grav_v <= 0.0f)
+							grav_v = 0.0f;
+					}
+
 					float dd = md - (d - r);
 
 					cam.o.m = _mm_add_ps(cam.o.m,
@@ -529,8 +575,8 @@ void render_main(void)
 				case SDLK_e:
 					vw = 0.0f;
 					break;
-				case SDLK_LCTRL:
-				case SDLK_SPACE:
+				case SDLK_f:
+				case SDLK_r:
 					vy = 0.0f;
 					break;
 
@@ -557,6 +603,13 @@ void render_main(void)
 					mrelease = !mrelease;
 					break;
 
+				case SDLK_SPACE:
+					if(grounded)
+					{
+						grav_v = -0.3f;
+						grounded = 0;
+					}
+					break;
 				case SDLK_s:
 					vz = -1.0f;
 					break;
@@ -566,7 +619,7 @@ void render_main(void)
 				case SDLK_q:
 					vw = -1.0f;
 					break;
-				case SDLK_SPACE:
+				case SDLK_r:
 					vy = -1.0f;
 					break;
 				case SDLK_w:
@@ -578,7 +631,7 @@ void render_main(void)
 				case SDLK_e:
 					vw = +1.0f;
 					break;
-				case SDLK_LCTRL:
+				case SDLK_f:
 					vy = +1.0f;
 					break;
 				
