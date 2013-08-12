@@ -163,7 +163,7 @@ box_t *box_inject(box_t *r, box_t *b)
 	return p;
 }
 
-int box_in(box_t *box, v4f_t *p)
+int box_in(const box_t *box, const v4f_t *p)
 {
 	v4f_t cmp;
 
@@ -186,7 +186,7 @@ int box_pair_touch(box_t *b0, box_t *b1)
 
 }
 
-box_t *box_in_tree_down(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
+const box_t *box_in_tree_down(const box_t *box, const v4f_t *p, box_t **ignore, int ignore_count)
 {
 	int i;
 
@@ -211,7 +211,7 @@ box_t *box_in_tree_down(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
 	}
 	
 	// traverse children
-	box_t *b = box_in_tree_down(box->c[0], p, ignore, ignore_count);
+	const box_t *b = box_in_tree_down(box->c[0], p, ignore, ignore_count);
 	if(b == NULL)
 		b = box_in_tree_down(box->c[1], p, ignore, ignore_count);
 	
@@ -219,8 +219,7 @@ box_t *box_in_tree_down(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
 	return b;
 }
 
-box_t *box_in_tree_up(box_t *box, v4f_t *p, box_t **ignore, int ignore_count, box_t *prev);
-box_t *box_in_tree_up(box_t *box, v4f_t *p, box_t **ignore, int ignore_count, box_t *prev)
+const box_t *box_in_tree_up(const box_t *box, const v4f_t *p, box_t **ignore, int ignore_count, const box_t *prev)
 {
 	int i;
 
@@ -249,7 +248,7 @@ box_t *box_in_tree_up(box_t *box, v4f_t *p, box_t **ignore, int ignore_count, bo
 	}
 	
 	// trace down
-	box_t *b = NULL;
+	const box_t *b = NULL;
 	if(box->c[0] != prev)
 		b = box_in_tree_down(box->c[0], p, ignore, ignore_count);
 	if(b == NULL && box->c[1] != prev)
@@ -260,9 +259,9 @@ box_t *box_in_tree_up(box_t *box, v4f_t *p, box_t **ignore, int ignore_count, bo
 	return b;
 }
 
-box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count)
+box_t *box_in_tree(box_t *box, const v4f_t *p, box_t **ignore, int ignore_count)
 {
-	return box_in_tree_up(box, p, ignore, ignore_count, NULL);
+	return (box_t *)box_in_tree_up(box, p, ignore, ignore_count, NULL);
 }
 
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
@@ -296,7 +295,7 @@ void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 	vec_norm(n);
 }
 
-float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside, int *side)
+float box_crosses(const box_t *box, const v4f_t *p, const v4f_t *vi, int *inside, int *side)
 {
 	// the general idea:
 	// define the "out" faces to be in the direction of the ray velocity.

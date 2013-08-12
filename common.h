@@ -125,11 +125,13 @@ void box_free_tree(box_t *b);
 box_t *box_new(v4f_t *v0, v4f_t *v1, v4f_t *color, int op);
 void box_print(box_t *b, int tabs);
 box_t *box_inject(box_t *r, box_t *b);
-int box_in(box_t *box, v4f_t *p);
+int box_in(const box_t *box, const v4f_t *p);
 int box_pair_touch(box_t *b0, box_t *b1);
-box_t *box_in_tree(box_t *box, v4f_t *p, box_t **ignore, int ignore_count);
+box_t *box_in_tree(box_t *box, const v4f_t *p, box_t **ignore, int ignore_count);
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside);
-float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside, int *side);
+float box_crosses(const box_t *box, const v4f_t *p, const v4f_t *vi, int *inside, int *side);
+
+// kd.c
 
 // level.c
 box_t *level_load_fp(FILE *fp);

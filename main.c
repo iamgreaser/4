@@ -29,6 +29,29 @@ distribution.
 
 #define MAX_BOX 10000
 
+int bseed = 1;
+
+int myrand(int *seed)
+{
+	int v = (*seed * 1103515245) + 12345;
+	v &= 0x7FFFFFFF;
+	*seed = v;
+	return v;
+}
+
+__m128 myrand_sse_mul(int *seed, float mul)
+{
+	__m128 v = _mm_set_ps(
+		(float)(myrand(seed)%65539),
+		(float)(myrand(seed)%65539),
+		(float)(myrand(seed)%65539),
+		(float)(myrand(seed)%65539));
+	
+	v = _mm_sub_ps(v, _mm_set1_ps(65539.0f / 2.0f));
+	v = _mm_mul_ps(v, _mm_set1_ps(mul * 2.0f / 65539.0f));
+	return v;
+}
+
 // TODO: move these two to the camera (well, a player entity, that is)
 float grav_v = 0.0f;
 int grounded = 0;
@@ -57,7 +80,7 @@ void refresh_fps(void)
 	fps_next_tick += 1000;
 }
 
-float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md, int *side)
+float trace_into_box(box_t **retbox, const v4f_t *p, const v4f_t *v, float md, int *side)
 {
 	box_t *box = *retbox;
 	float d = 0.0f;
@@ -104,7 +127,7 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md, int *side)
 }
 
 #define MAX_IGN 100
-float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md, int *side)
+float trace_box(box_t *box, const v4f_t *p, const v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md, int *side)
 {
 	int i; (void)i;
 	box_t *ign_l[MAX_IGN];
@@ -202,7 +225,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	}
 }
 
-void trace_main(int bouncerem, box_t *bstart, box_t *bign, v4f_t *p, v4f_t *f, v4f_t *cf, v4f_t *color, float md)
+void trace_main(int bouncerem, box_t *bstart, box_t *bign, const v4f_t *p, const v4f_t *f, const v4f_t *cf, v4f_t *color, float md, int *seed)
 {
 	int side;
 	int inside;
@@ -211,6 +234,7 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, v4f_t *p, v4f_t *f, v
 	if(bouncerem-- <= 0)
 		return;
 
+	// apply focal blur
 	v4f_t rcolor;
 	rcolor.m = color->m;
 	float d = trace_box(bstart, p, f, &rcolor, &box, &inside, md, &side);
@@ -233,43 +257,71 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, v4f_t *p, v4f_t *f, v
 		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
 
 		// bounce
-		v4f_t ncolor, fb;
+		int bi, bc;
+		bc = 1;
+		v4f_t ncolor, ncolor2, fb, fb2;
 		fb.m = f->m;
 		fb.a[side&3] *= -1.0f;
 		ncolor.m = _mm_setzero_ps();
-		trace_main(bouncerem, box, NULL, &np, &fb, cf, &ncolor, md - d);
+		for(bi = 0; bi < bc; bi++)
+		{
+			ncolor2.m = _mm_setzero_ps();
+			const float blurfac = 0.02f;
+			fb2.m = _mm_add_ps(fb.m, myrand_sse_mul(seed, blurfac));
+			trace_main(bouncerem, box, NULL, &np, &fb2, cf, &ncolor2, md - d, seed);
+			ncolor.m = _mm_add_ps(ncolor.m, ncolor2.m);
+		}
 
 		// multiply diffuse
 		color->m = _mm_add_ps(
-			_mm_mul_ps(ncolor.m, _mm_set1_ps(0.3f)),
-			_mm_mul_ps(rcolor.m, _mm_set1_ps(diff*0.7f))
+			_mm_mul_ps(ncolor.m, _mm_set1_ps(0.19f/bc)),
+			_mm_mul_ps(rcolor.m, _mm_set1_ps(diff*0.81f))
 		);
 
 	}
 }
 
-uint32_t trace_pixel(box_t *bstart, float sx, float sy, v4f_t *dirx, v4f_t *diry, v4f_t *dirz)
+uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, int *seed)
 {
-	v4f_t f;
+	v4f_t p, f;
 
-	f.m = _mm_add_ps(
-		dirz->m,
-		_mm_add_ps(
-			_mm_mul_ps(dirx->m, _mm_set1_ps(sx)),
-			_mm_mul_ps(diry->m, _mm_set1_ps(sy))
-		));
-	
-	// normalise
-	vec_norm(&f);
+	const float bluraper = 0.0f;
+	const float blurdist = 1.5f;
+
+	if(bluraper == 0.0f)
+	{
+		p.m = cam.o.m;
+		f.m = _mm_add_ps(
+			dirz->m,
+			_mm_add_ps(
+				_mm_mul_ps(dirx->m, _mm_set1_ps(sx)),
+				_mm_mul_ps(diry->m, _mm_set1_ps(sy))
+			));
+		
+		// normalise
+		vec_norm(&f);
+	} else {
+		// give a slight offset to cause a focal blur
+		__m128 bluroffs = myrand_sse_mul(seed, bluraper);
+		__m128 focus = _mm_add_ps(p.m, _mm_mul_ps(_mm_set1_ps(blurdist), dirz->m));
+		p.m = _mm_add_ps(cam.o.m, bluroffs);
+		f.m = _mm_sub_ps(focus, p.m);
+		vec_norm(&f);
+
+		f.m = _mm_add_ps(
+			f.m,
+			_mm_add_ps(
+				_mm_mul_ps(dirx->m, _mm_set1_ps(sx)),
+				_mm_mul_ps(diry->m, _mm_set1_ps(sy))
+			));
+		vec_norm(&f);
+	}
 
 	// trace recursively
 	v4f_t color;
 	color.m = _mm_add_ps(_mm_mul_ps(f.m, _mm_set1_ps(0.5f)), _mm_set1_ps(0.5f));
 
-	v4f_t p;
-	p.m = cam.o.m;
-
-	trace_main(3, bstart, NULL, &p, &f, &f, &color, 100.0f);
+	trace_main(3, bstart, NULL, &p, &f, &f, &color, 100.0f, seed);
 
 	return color_vec_sse(color.m);
 }
@@ -295,6 +347,8 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 		uint32_t *d0, *d1, *d2;
 		__attribute__((aligned(16))) uint32_t vs[4];
 
+		int seed = bseed ^ (y*6325);
+
 		d0 = (uint32_t *)((screen->pixels) + screen->pitch*(0+3*(y+vy)) + 4*3*vx);
 		d1 = (uint32_t *)((screen->pixels) + screen->pitch*(1+3*(y+vy)) + 4*3*vx);
 		d2 = (uint32_t *)((screen->pixels) + screen->pitch*(2+3*(y+vy)) + 4*3*vx);
@@ -305,7 +359,7 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 
 		for(x = 0; x < w-3 && (((long)d0)&15) != 0; x++)
 		{
-			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz);
+			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed);
 
 			*(d0++) = v;
 			*(d0++) = v;
@@ -322,10 +376,10 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 
 		for(; x < w-3; x += 4)
 		{
-			vs[0] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
-			vs[1] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
-			vs[2] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
-			vs[3] = trace_pixel(bstart, sx, sy, dx, dy, dz); sx += sxd;
+			vs[0] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
+			vs[1] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
+			vs[2] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
+			vs[3] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
 
 			__m128i pb = _mm_load_si128((__m128i *)vs);
 
@@ -351,7 +405,7 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 
 		for(; x < w; x++)
 		{
-			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz);
+			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed);
 
 			*(d0++) = v;
 			*(d0++) = v;
