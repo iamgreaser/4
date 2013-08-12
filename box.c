@@ -296,7 +296,7 @@ void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside)
 	vec_norm(n);
 }
 
-float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
+float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside, int *side)
 {
 	// the general idea:
 	// define the "out" faces to be in the direction of the ray velocity.
@@ -331,25 +331,50 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 		abort();
 
 	// offset the values
-	// note, using negative o and taking max, hence the swapped args.
+	// doing a max so we're actually using -out
 	fi = _mm_sub_ps(fi, p->m);
 	fo = _mm_sub_ps(p->m, fo);
 
 	// get times
-	__m128 ti = _mm_div_ps(fi, v.m);
-	__m128 to = _mm_div_ps(fo, v.m);
-
-	// get largest times
-	v4f_t c0;
-	c0.m = _mm_max_ps(
-		_mm_movehl_ps(to, ti),
-		_mm_movelh_ps(ti, to)
+	// encode the indices on the lowest 3 bits of the fractional part
+	__m128 ti, to;
+	ti = _mm_xor_ps(
+		_mm_and_ps(dirneg, (__m128)_mm_set1_epi32(4)),
+		_mm_or_ps((__m128)_mm_set_epi32(3, 2, 1, 0),
+			_mm_and_ps((__m128)_mm_set1_epi32(~0x7),
+				_mm_div_ps(fi, v.m)
+			)
+		)
+	);
+	to = _mm_xor_ps(
+		_mm_and_ps(dirneg, (__m128)_mm_set1_epi32(4)),
+		_mm_or_ps((__m128)_mm_set_epi32(7, 6, 5, 4),
+			_mm_and_ps((__m128)_mm_set1_epi32(~0x7),
+				_mm_div_ps(fo, v.m)
+			)
+		)
 	);
 
-	// get distances
+	/*
+	printf("%08X %08X %08X %08X\n",
+		(*(0+(int *)&to)),
+		(*(1+(int *)&to)),
+		(*(2+(int *)&to)),
+		(*(3+(int *)&to)));
+	*/
+
+	// get relevant face indices + distances
+	v4f_t c0;
+	c0.m = _mm_max_ps(
+	        _mm_movehl_ps(to, ti),
+	        _mm_movelh_ps(ti, to)
+	);
+
 	float dci = (c0.a[0] > c0.a[1] ? c0.a[0] : c0.a[1]);
 	float dco = -(c0.a[2] > c0.a[3] ? c0.a[2] : c0.a[3]);
-	
+	int idxi = (*(int *)(float *)&dci) & 7;
+	int idxo = (*(int *)(float *)&dco) & 7;
+
 	// return appropriately
 	if(dco < dci)
 		return -1.0f;
@@ -357,9 +382,11 @@ float box_crosses(box_t *box, v4f_t *p, v4f_t *vi, int *inside)
 	if(dci <= 0.0f)
 	{
 		if(inside != NULL) *inside = 1;
+		if(side != NULL) *side = idxo+(v.a[idxo] < 0.0f ? 0 : 4);
 		return dco;
 	} else {
 		if(inside != NULL) *inside = 0;
+		if(side != NULL) *side = idxi+(v.a[idxi] < 0.0f ? 4 : 0);
 		return dci;
 	}
 }

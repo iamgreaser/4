@@ -53,7 +53,7 @@ void refresh_fps(void)
 	fps_next_tick += 1000;
 }
 
-float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
+float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md, int *side)
 {
 	box_t *box = *retbox;
 	float d = 0.0f;
@@ -64,7 +64,7 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 	{
 		// nope. can we trace to it?
 		//d = box_crosses_outside(box, p, v);
-		d = box_crosses(box, p, v, NULL);
+		d = box_crosses(box, p, v, NULL, side);
 
 		if(d < -1.0f || d >= md)
 		{
@@ -79,14 +79,14 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 		// yes. trace children.
 		box_t *b0 = box->c[0];
 		box_t *b1 = box->c[1];
-		float d0 = trace_into_box(&b0, p, v, md);
+		float d0 = trace_into_box(&b0, p, v, md, side);
 		if(d0 >= 0.0f)
 			md = d0;
-		float d1 = trace_into_box(&b1, p, v, md);
+		float d1 = trace_into_box(&b1, p, v, md, side);
 
-		if(d0 < 0.0f || (d1 >= 0.0f && d1 < d0))
+		if(d1 >= 0.0f && d1 < d0)
 		{
-			if(d1 >= 0.0f) *retbox = b1;
+			*retbox = b1;
 			return d1;
 		} else {
 			if(d0 >= 0.0f) *retbox = b0;
@@ -100,7 +100,7 @@ float trace_into_box(box_t **retbox, v4f_t *p, v4f_t *v, float md)
 }
 
 #define MAX_IGN 100
-float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md)
+float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md, int *side)
 {
 	int i; (void)i;
 	box_t *ign_l[MAX_IGN];
@@ -126,7 +126,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	{
 		// trace inwards.
 		box = obox;
-		td = trace_into_box(&box, p, v, md);
+		td = trace_into_box(&box, p, v, md, side);
 
 		// did we go anywhere?
 		if(td < 0.0f || td >= md)
@@ -147,11 +147,13 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 	for(;;)
 	{
 		// trace to the box end.
-		td = box_crosses(box, &tp, v, &ins);
+		td = box_crosses(box, &tp, v, &ins, side);
 
 		// ASSERTION.
 		if(td < 0.0f)
-			abort();
+			// FIXME: this sometimes happens.
+			return -1.0f;
+			//abort();
 
 		// check if we have exceeded our distance.
 		ad += td;
@@ -174,7 +176,9 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 		// add our current box to the ignore list
 		ign_l[ign_c++] = box;
 		if(ign_c > 100)
-			abort();
+			// FIXME: this sometimes happens.
+			return -1.0f;
+			//abort();
 
 		// check to see if we're in another box.
 		box_t *nbox = box_in_tree(box, &tp, ign_l, ign_c);
@@ -197,6 +201,7 @@ float trace_box(box_t *box, v4f_t *p, v4f_t *v, v4f_t *color, box_t **retbox, in
 uint32_t trace_pixel(box_t *bstart, float sx, float sy, v4f_t *dirx, v4f_t *diry, v4f_t *dirz)
 {
 	v4f_t f;
+	int side;
 
 	f.m = _mm_add_ps(
 		dirz->m,
@@ -217,7 +222,7 @@ uint32_t trace_pixel(box_t *bstart, float sx, float sy, v4f_t *dirx, v4f_t *diry
 	box_t *box = NULL;
 
 	p.m = cam.o.m;
-	float d = trace_box(bstart, &p, &f, &color, &box, &inside, 100.0f);
+	float d = trace_box(bstart, &p, &f, &color, &box, &inside, 100.0f, &side);
 
 	if(d >= 0.0f)
 	{
@@ -444,13 +449,29 @@ void render_main(void)
 			float r = 0.2f;
 			float md = sqrtf(vx*vx + vy*vy + vz*vz + vw*vw)*vs;
 			tno.m = cam.o.m;
-			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r);
-			
-			(void)d;
-			if(d >= 0.0f) md = d - r;
+			int side;
 
-			cam.o.m = _mm_add_ps(cam.o.m,
-				_mm_mul_ps(_mm_set1_ps(md), tv.m));
+			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r, &side);
+			
+			//
+			// apply collision
+			//
+
+			if(d < 0.0f)
+			{
+				// no collision. jump to point.
+				cam.o.m = _mm_add_ps(cam.o.m,
+					_mm_mul_ps(_mm_set1_ps(md), tv.m));
+			} else {
+				// we've hit a plane. slide back.
+				float dd = md - (d - r);
+
+				cam.o.m = _mm_add_ps(cam.o.m,
+					_mm_mul_ps(_mm_set1_ps(md), tv.m));
+				
+				//printf("side %i\n", side);
+				cam.o.a[side&3] = cam.o.a[side&3] - dd * tv.a[side&3];
+			}
 		}
 
 		while(SDL_PollEvent(&ev))
