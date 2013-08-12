@@ -300,7 +300,7 @@ float box_crosses(const box_t *box, const v4f_t *p, const v4f_t *vi, int *inside
 	// the general idea:
 	// define the "out" faces to be in the direction of the ray velocity.
 	// define the "in" faces to be the other faces.
-	// if the largest "in" face distance is greater than the smallest "out" face distance,
+	// if the largest "in" face distance is smaller than the smallest "out" face distance,
 	// return the largest "in" face distance - we've hit the box.
 	// otherwise, return -1.0f.
 
