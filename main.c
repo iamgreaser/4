@@ -451,26 +451,35 @@ void render_main(void)
 			tno.m = cam.o.m;
 			int side;
 
-			float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r, &side);
-			
-			//
-			// apply collision
-			//
-
-			if(d < 0.0f)
+			// trace away
+			for(;;)
 			{
-				// no collision. jump to point.
-				cam.o.m = _mm_add_ps(cam.o.m,
-					_mm_mul_ps(_mm_set1_ps(md), tv.m));
-			} else {
-				// we've hit a plane. slide back.
-				float dd = md - (d - r);
-
-				cam.o.m = _mm_add_ps(cam.o.m,
-					_mm_mul_ps(_mm_set1_ps(md), tv.m));
+				float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r, &side);
 				
-				//printf("side %i\n", side);
-				cam.o.a[side&3] = cam.o.a[side&3] - dd * tv.a[side&3];
+				//
+				// apply collision
+				//
+
+				if(d < 0.0f)
+				{
+					// no collision. jump to point.
+					cam.o.m = _mm_add_ps(cam.o.m,
+						_mm_mul_ps(_mm_set1_ps(md), tv.m));
+
+					break;
+				} else {
+					// we've hit a plane. slide back.
+					float dd = md - (d - r);
+
+					cam.o.m = _mm_add_ps(cam.o.m,
+						_mm_mul_ps(_mm_set1_ps(md - dd), tv.m));
+
+					// mask out velocity.
+					tv.a[side&3] = 0.0f;
+
+					// reduce distance.
+					md = dd;
+				}
 			}
 		}
 
