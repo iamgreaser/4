@@ -227,18 +227,21 @@ uint32_t trace_pixel(box_t *bstart, float sx, float sy, v4f_t *dirx, v4f_t *diry
 	if(d >= 0.0f)
 	{
 		// move position
+		/*
 		p.m = _mm_add_ps(p.m, _mm_mul_ps(
 			f.m, _mm_set1_ps(d)));
+		*/
 
 		// calculate normal
 		v4f_t n;
-		box_normal(box, &p, &n, inside);
+		//box_normal(box, &p, &n, inside);
+		n.m = _mm_setzero_ps();
+		n.a[side&3] = ((side & 4) ? 1.0f : -1.0f) * (inside ? 1.0f : -1.0f);
 
 		// calculate diffuse (against one point for now)
 		v4f_t dc;
 		dc.m = _mm_mul_ps(f.m, n.m);
 		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
-		//if(diff < 0.0f) diff = -diff;
 
 		// multiply diffuse
 		color.m = _mm_mul_ps(color.m, _mm_set1_ps(diff));
