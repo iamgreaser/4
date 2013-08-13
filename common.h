@@ -154,6 +154,23 @@ struct kd
 	//
 	// CONSTRAINT: parent->axis <= this->axis
 	int axis;
+
+	//
+	// ACCELERATION VARIABLES
+	// note, any of these can be NULL during tree construction.
+	//
+
+	// axis parent
+	//
+	// CONSTRAINT: if axis == 0, ap == NULL
+	//
+	// CONSTRAINT: if axis > 0,
+	//   ap->axis == this->axis - 1
+	//   && ap is an axis change node
+	kd_t *ap;
+
+	// adjacency list
+	kd_t *adj[8];
 };
 
 extern int fps_counter;
@@ -186,7 +203,10 @@ float box_crosses(const box_t *box, const v4f_t *p, const v4f_t *vi, int *inside
 // kd.c
 void kd_free(kd_t *kd);
 void kd_free_down(kd_t *kd);
+void kd_print(const kd_t *kd, int tabs);
+const kd_t *kd_in_tree(const kd_t *kd, const v4f_t *p, v4f_t *b0, v4f_t *b1);
 kd_t *kd_add_box(kd_t *kd, box_t *box);
+void kd_accelerate(kd_t *kd);
 
 // level.c
 box_t *level_load_fp(FILE *fp);

@@ -258,31 +258,24 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, const v4f_t *p, const
 		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
 
 		// bounce
-		int bi, bc;
-		bc = 1;
 		v4f_t ncolor, ncolor2, fb, fb2;
 		fb.m = f->m;
 		fb.a[side&3] *= -1.0f;
 		ncolor.m = _mm_setzero_ps();
-		for(bi = 0; bi < bc; bi++)
-		{
-			ncolor2.m = _mm_setzero_ps();
-			const float blurfac = 0.02f;
-			fb2.m = _mm_add_ps(fb.m, myrand_sse_mul(seed, blurfac));
-			trace_main(bouncerem, box, NULL, &np, &fb2, cf, &ncolor2, md - d, seed);
-			ncolor.m = _mm_add_ps(ncolor.m, ncolor2.m);
-		}
+		const float blurfac = 0.02f;
+		fb2.m = _mm_add_ps(fb.m, myrand_sse_mul(seed, blurfac));
+		trace_main(bouncerem, box, NULL, &np, &fb2, cf, &ncolor, md - d, seed);
 
 		// multiply diffuse
 		color->m = _mm_add_ps(
-			_mm_mul_ps(ncolor.m, _mm_set1_ps(0.19f/bc)),
+			_mm_mul_ps(ncolor.m, _mm_set1_ps(0.19f)),
 			_mm_mul_ps(rcolor.m, _mm_set1_ps(diff*0.81f))
 		);
 
 	}
 }
 
-uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, int *seed)
+__m128 trace_pixel_step(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, int *seed)
 {
 	v4f_t p, f;
 
@@ -324,7 +317,59 @@ uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const
 
 	trace_main(3, bstart, NULL, &p, &f, &f, &color, 100.0f, seed);
 
-	return color_vec_sse(color.m);
+	return color.m;
+}
+
+uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, int *seed)
+{
+	__m128 color;
+	__m128 cmin, cmax;
+	v4f_t cdiff;
+	int i;
+
+	const int bcmin = 1;
+	const int bcmax = 1;
+	const float bcap = 1.0f;
+	/*
+	const int bcmin = 3;
+	const int bcmax = 10;
+	const float bcap = 0.5f;
+	*/
+
+	const int bcvary = bcmax - bcmin;
+
+	int bc = 1;
+
+	color = trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, seed);
+	cmin = cmax = color;
+
+	for(i = 0; i < bcmin-1; i++, bc++)
+	{
+		__m128 ncolor = trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, seed);
+		cmin = _mm_min_ps(cmin, ncolor);
+		cmax = _mm_max_ps(cmax, ncolor);
+		color = _mm_add_ps(color, ncolor);
+	}
+
+	cdiff.m = _mm_sub_ps(cmax, cmin);
+
+	float bdiff = (cdiff.a[0]
+		+ cdiff.a[1]
+		+ cdiff.a[2]);
+	
+	bdiff /= bcap;
+	if(bdiff > 1.0f)
+		bdiff = 1.0f;
+	
+	bdiff = 1.0f - bdiff;
+	bdiff = bdiff * bdiff;
+	bdiff = 1.0f - bdiff;
+	int bcvc = (int)(bcvary*bdiff + 0.9f);
+	for(i = 0; i < bcvc; i++, bc++)
+		color = _mm_add_ps(color, trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, seed));
+	
+	color = _mm_mul_ps(color, _mm_set1_ps(1.0f/bc));
+	return color_vec_sse(color);
 }
 
 void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *dz)
@@ -435,7 +480,8 @@ void level_init(const char *fname)
 {
 	root = level_load_fname(fname);
 	kdroot = kd_add_box(kdroot, root);
-	//box_print(root, 0);
+	kd_accelerate(kdroot);
+	kd_print(kdroot, 0);
 }
 
 void render_screen(void)
@@ -477,6 +523,22 @@ void render_screen(void)
 	fps_counter++;
 	if(SDL_GetTicks() >= fps_next_tick)
 		refresh_fps();
+	
+	v4f_t b0, b1;
+	const kd_t *kd = kd_in_tree(kdroot, &cam.o, &b0, &b1);
+	if(kd != NULL)
+	{
+		printf("%016llX: %f %f %f %f -> %f %f %f %f\n",
+			kd,
+			b0.v.x,
+			b0.v.y,
+			b0.v.z,
+			b0.v.w,
+			b1.v.x,
+			b1.v.y,
+			b1.v.z,
+			b1.v.w);
+	}
 }
 
 void render_main(void)
