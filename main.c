@@ -311,12 +311,15 @@ __m128 trace_pixel_step(box_t *bstart, float sx, float sy, const v4f_t *dirx, co
 		vec_norm(&f);
 	}
 	
+	// disabled because it spoils the suprise
+	/*
 	// slightly distort for w
-	float wdist = 0.5f;
+	float wdist = 0.1f;
 	f.m = _mm_add_ps(
 		f.m,
 		_mm_mul_ps(dirw->m, _mm_set1_ps(sqrtf(sx*sx + sy*sy)*wdist))
 	);
+	*/
 
 	// trace recursively
 	v4f_t color;
@@ -560,6 +563,7 @@ void render_main(void)
 	float vayz = 0.0f;
 	float vaxw = 0.0f;
 	float vayw = 0.0f;
+	float vaxy = 0.0f;
 	float vx = 0.0f;
 	float vy = 0.0f;
 	float vz = 0.0f;
@@ -569,8 +573,8 @@ void render_main(void)
 		render_screen();
 
 		const float vas = 0.002f;
-		cam_rotate_by(vaxz*vas, vayz*vas, vaxw*vas, vayw*vas);
-		vaxz = vayz = vaxw = vayw = 0.0f;
+		cam_rotate_by(vaxz*vas, vayz*vas, vaxw*vas, vayw*vas, vaxy*vas);
+		vaxz = vayz = vaxw = vayw = vaxy = 0.0f;
 
 		const float vs = 0.2f;
 
@@ -666,6 +670,12 @@ void render_main(void)
 
 			case SDL_MOUSEBUTTONDOWN:
 				mbutts |= (1<<(ev.button.button-1));
+				if(ev.button.button == 4)
+				{
+					vaxy += 20.0f;
+				} else if(ev.button.button == 5) {
+					vaxy -= 20.0f;
+				}
 				break;
 
 			case SDL_MOUSEBUTTONUP:

@@ -97,12 +97,20 @@ uint32_t color_vec_sse(__m128 v)
 	return _mm_cvtsi128_si32(vi);
 }
 
-void cam_rotate_by(float axz, float ayz, float axw, float ayw)
+void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy)
 {
 	m4f_t rotmat;
 	float s, c;
 
 	// aiming for left-hand coordinates - y up, x right, z forward, ana-kata wherever the fuck it goes
+
+	// rotate around xy
+	mat_ident(&rotmat);
+	s = sinf(axy);
+	c = cosf(axy);
+	rotmat.v.z.m = _mm_set_ps(s, c, 0, 0);
+	rotmat.v.w.m = _mm_set_ps(c, -s, 0, 0);
+	mat_mul(&cam.m, &rotmat);
 
 	// rotate around xw
 	mat_ident(&rotmat);

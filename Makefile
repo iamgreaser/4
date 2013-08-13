@@ -1,7 +1,7 @@
 
 BINNAME = 4
 
-OBJS = box.o kd.o level.o vec.o main.o
+OBJS = box.o kd.o level.o sphere.o vec.o main.o
 INCLUDES = common.h
 
 SDL_CF = `sdl-config --cflags` 
