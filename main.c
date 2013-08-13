@@ -235,7 +235,6 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, const v4f_t *p, const
 	if(bouncerem-- <= 0)
 		return;
 
-	// apply focal blur
 	v4f_t rcolor;
 	rcolor.m = color->m;
 	float d = trace_box(bstart, p, f, &rcolor, &box, &inside, md, &side);
@@ -258,7 +257,7 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, const v4f_t *p, const
 		float diff = dc.v.x + dc.v.y + dc.v.z + dc.v.w;
 
 		// bounce
-		v4f_t ncolor, ncolor2, fb, fb2;
+		v4f_t ncolor, fb, fb2;
 		fb.m = f->m;
 		fb.a[side&3] *= -1.0f;
 		ncolor.m = _mm_setzero_ps();
@@ -528,7 +527,7 @@ void render_screen(void)
 	const kd_t *kd = kd_in_tree(kdroot, &cam.o, &b0, &b1);
 	if(kd != NULL)
 	{
-		printf("%016llX: %f %f %f %f -> %f %f %f %f\n",
+		printf("%p: %f %f %f %f -> %f %f %f %f\n",
 			kd,
 			b0.v.x,
 			b0.v.y,

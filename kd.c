@@ -226,14 +226,10 @@ kd_t *kd_contract_down(kd_t *kd, kd_t *cmpkd)
 
 			return kd;
 		} else {
-			// one is NULL, the other has a value.
+			// get one which is non-NULL, if possible.
 			kd = c0;
 			if(kd == NULL)
 				kd = c1;
-
-			// assertion...
-			if(kd == NULL)
-				abort();
 
 			// return the child node that we have.
 			return kd;
@@ -276,14 +272,28 @@ kd_t *kd_split(kd_t *kd, float split)
 	dup = kd_contract_down(dup, dup);
 	kd = kd_contract_down(kd, kd);
 
-	// set children.
-	p->c[0] = kd;
-	p->c[1] = dup;
-	p->c[0]->p = p;
-	p->c[1]->p = p;
+	// check if children are NULL.
+	if(kd != NULL && dup != NULL)
+	{
+		// set children.
+		p->c[0] = kd;
+		p->c[1] = dup;
+		p->c[0]->p = p;
+		p->c[1]->p = p;
 
-	// return "parent".
-	return p;
+		// return "parent".
+		return p;
+	} else {
+		// find a node to return.
+		kd_free(p);
+		
+		if(kd != NULL)
+			return kd;
+		else if(dup != NULL)
+			return dup;
+		else
+			return NULL;
+	}
 }
 
 kd_t *kd_add_box_step(int axis, int canexpand, kd_t *kd, box_t *box)
@@ -298,10 +308,7 @@ kd_t *kd_add_box_step(int axis, int canexpand, kd_t *kd, box_t *box)
 	if(kd == NULL)
 	{
 		// yes. create a new kd node.
-		kd = kd_new(axis, box->v0.a[axis], box->v1.a[axis],
-			(axis != 3 || box->op == SHP_SUB ? NULL : box),
-			(box->op == SHP_ADD ? NULL : box),
-			(box->op == SHP_ADD ? NULL : box));
+		kd = kd_new(axis, box->v0.a[axis], box->v1.a[axis], box, box, box);
 
 		// check if we're at axis level 3.
 		if(axis == 3)
@@ -318,10 +325,32 @@ kd_t *kd_add_box_step(int axis, int canexpand, kd_t *kd, box_t *box)
 	if(canexpand)
 	{
 		// check: do we exceed the -ve limit?
-		// TODO!
+		if(box->v0.a[axis] < kd->v[0])
+		{
+			// create parent, recurse down, and return.
+			kd_t *pair = kd_new(axis, box->v0.a[axis], kd->v[1], box, box, kd->obox[1]);
+
+			pair->c[0] = kd_add_box_step(axis, 0, NULL, box);
+			pair->c[1] = kd_add_box_step(axis, 0, kd, box);
+			pair->c[0]->p = pair;
+			pair->c[1]->p = pair;
+
+			return pair;
+		}
 
 		// check: do we exceed the +ve limit?
-		// TODO!
+		if(box->v1.a[axis] > kd->v[1])
+		{
+			// create parent, recurse down, and return.
+			kd_t *pair = kd_new(axis, kd->v[0], box->v1.a[axis], box, kd->obox[0], box);
+
+			pair->c[0] = kd_add_box_step(axis, 0, kd, box);
+			pair->c[1] = kd_add_box_step(axis, 0, NULL, box);
+			pair->c[0]->p = pair;
+			pair->c[1]->p = pair;
+
+			return pair;
+		}
 	}
 
 	// check: do we not reach the -ve limit?
