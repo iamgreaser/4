@@ -62,6 +62,7 @@ int mrelease = 0;
 int fps_counter = 0;
 int fps_next_tick = 0;
 box_t *root = NULL;
+kd_t *kdroot = NULL;
 
 SDL_Surface *screen = NULL;
 int rtbuf_width = 320;
@@ -285,7 +286,7 @@ uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const
 {
 	v4f_t p, f;
 
-	const float bluraper = 0.0f;
+	const float bluraper = 0.00f;
 	const float blurdist = 1.5f;
 
 	if(bluraper == 0.0f)
@@ -433,7 +434,8 @@ void cam_init(void)
 void level_init(const char *fname)
 {
 	root = level_load_fname(fname);
-	box_print(root, 0);
+	kdroot = kd_add_box(kdroot, root);
+	//box_print(root, 0);
 }
 
 void render_screen(void)

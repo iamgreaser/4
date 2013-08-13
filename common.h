@@ -109,7 +109,7 @@ struct kd
 {
 	// outer box (for SHP_SUB hypervolumes)
 	// only useful for the fringes of a space
-	box_t *obox;
+	box_t *obox[2];
 
 	// associated box (i.e. what fills this space)
 	box_t *box;
@@ -184,7 +184,6 @@ void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside);
 float box_crosses(const box_t *box, const v4f_t *p, const v4f_t *vi, int *inside, int *side);
 
 // kd.c
-kd_t *kd_new(int axis, float v0, float v1, box_t *box, box_t *obox);
 void kd_free(kd_t *kd);
 void kd_free_down(kd_t *kd);
 kd_t *kd_add_box(kd_t *kd, box_t *box);
