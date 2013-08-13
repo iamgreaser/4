@@ -266,15 +266,16 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, const v4f_t *p, const
 		trace_main(bouncerem, box, NULL, &np, &fb2, cf, &ncolor, md - d, seed);
 
 		// multiply diffuse
+		const float refl = 0.3f;
 		color->m = _mm_add_ps(
-			_mm_mul_ps(ncolor.m, _mm_set1_ps(0.19f)),
-			_mm_mul_ps(rcolor.m, _mm_set1_ps(diff*0.81f))
+			_mm_mul_ps(ncolor.m, _mm_set1_ps(refl)),
+			_mm_mul_ps(rcolor.m, _mm_set1_ps(diff*(1.0f-refl)))
 		);
 
 	}
 }
 
-__m128 trace_pixel_step(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, int *seed)
+__m128 trace_pixel_step(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, const v4f_t *dirw, int *seed)
 {
 	v4f_t p, f;
 
@@ -309,6 +310,13 @@ __m128 trace_pixel_step(box_t *bstart, float sx, float sy, const v4f_t *dirx, co
 			));
 		vec_norm(&f);
 	}
+	
+	// slightly distort for w
+	float wdist = 0.5f;
+	f.m = _mm_add_ps(
+		f.m,
+		_mm_mul_ps(dirw->m, _mm_set1_ps(sqrtf(sx*sx + sy*sy)*wdist))
+	);
 
 	// trace recursively
 	v4f_t color;
@@ -319,7 +327,7 @@ __m128 trace_pixel_step(box_t *bstart, float sx, float sy, const v4f_t *dirx, co
 	return color.m;
 }
 
-uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, int *seed)
+uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, const v4f_t *dirw, int *seed)
 {
 	__m128 color;
 	__m128 cmin, cmax;
@@ -339,12 +347,12 @@ uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const
 
 	int bc = 1;
 
-	color = trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, seed);
+	color = trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, dirw, seed);
 	cmin = cmax = color;
 
 	for(i = 0; i < bcmin-1; i++, bc++)
 	{
-		__m128 ncolor = trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, seed);
+		__m128 ncolor = trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, dirw, seed);
 		cmin = _mm_min_ps(cmin, ncolor);
 		cmax = _mm_max_ps(cmax, ncolor);
 		color = _mm_add_ps(color, ncolor);
@@ -365,13 +373,13 @@ uint32_t trace_pixel(box_t *bstart, float sx, float sy, const v4f_t *dirx, const
 	bdiff = 1.0f - bdiff;
 	int bcvc = (int)(bcvary*bdiff + 0.9f);
 	for(i = 0; i < bcvc; i++, bc++)
-		color = _mm_add_ps(color, trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, seed));
+		color = _mm_add_ps(color, trace_pixel_step(bstart, sx, sy, dirx, diry, dirz, dirw, seed));
 	
 	color = _mm_mul_ps(color, _mm_set1_ps(1.0f/bc));
 	return color_vec_sse(color);
 }
 
-void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *dz)
+void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *dz, v4f_t *dw)
 {
 	int y;
 
@@ -404,7 +412,7 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 
 		for(x = 0; x < w-3 && (((long)d0)&15) != 0; x++)
 		{
-			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed);
+			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz, dw, &seed);
 
 			*(d0++) = v;
 			*(d0++) = v;
@@ -421,10 +429,10 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 
 		for(; x < w-3; x += 4)
 		{
-			vs[0] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
-			vs[1] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
-			vs[2] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
-			vs[3] = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed); sx += sxd;
+			vs[0] = trace_pixel(bstart, sx, sy, dx, dy, dz, dw, &seed); sx += sxd;
+			vs[1] = trace_pixel(bstart, sx, sy, dx, dy, dz, dw, &seed); sx += sxd;
+			vs[2] = trace_pixel(bstart, sx, sy, dx, dy, dz, dw, &seed); sx += sxd;
+			vs[3] = trace_pixel(bstart, sx, sy, dx, dy, dz, dw, &seed); sx += sxd;
 
 			__m128i pb = _mm_load_si128((__m128i *)vs);
 
@@ -450,7 +458,7 @@ void render_viewport(int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *
 
 		for(; x < w; x++)
 		{
-			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz, &seed);
+			uint32_t v = trace_pixel(bstart, sx, sy, dx, dy, dz, dw, &seed);
 
 			*(d0++) = v;
 			*(d0++) = v;
@@ -478,9 +486,9 @@ void cam_init(void)
 void level_init(const char *fname)
 {
 	root = level_load_fname(fname);
-	kdroot = kd_add_box(kdroot, root);
-	kd_accelerate(kdroot);
-	kd_print(kdroot, 0);
+	//kdroot = kd_add_box(kdroot, root);
+	//kd_accelerate(kdroot);
+	//kd_print(kdroot, 0);
 }
 
 void render_screen(void)
@@ -504,15 +512,15 @@ void render_screen(void)
 
 	if(mbutts & 4)
 	{
-		render_viewport(x0, y0, x3-x0, y1-y0, &nx, &cam.m.v.y, &cam.m.v.w);
-		render_viewport(x0, y1, x1-x0, y2-y1, &nx, &cam.m.v.y, &nz);
-		render_viewport(x1, y1, x2-x1, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw);
-		render_viewport(x2, y1, x3-x2, y2-y1, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
+		render_viewport(x0, y0, x3-x0, y1-y0, &nx, &cam.m.v.y, &cam.m.v.w, &cam.m.v.z);
+		render_viewport(x0, y1, x1-x0, y2-y1, &nx, &cam.m.v.y, &nz, &cam.m.v.w);
+		render_viewport(x1, y1, x2-x1, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw, &cam.m.v.z);
+		render_viewport(x2, y1, x3-x2, y2-y1, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z, &cam.m.v.w);
 	} else {
-		render_viewport(x0, y0, x3-x0, y1-y0, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z);
-		render_viewport(x0, y1, x1-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw);
-		render_viewport(x1, y1, x2-x1, y2-y1, &nx, &cam.m.v.y, &nz);
-		render_viewport(x2, y1, x3-x2, y2-y1, &nx, &cam.m.v.y, &cam.m.v.w);
+		render_viewport(x0, y0, x3-x0, y1-y0, &cam.m.v.x, &cam.m.v.y, &cam.m.v.z, &cam.m.v.w);
+		render_viewport(x0, y1, x1-x0, y2-y1, &cam.m.v.x, &cam.m.v.y, &nw, &cam.m.v.z);
+		render_viewport(x1, y1, x2-x1, y2-y1, &nx, &cam.m.v.y, &nz, &cam.m.v.w);
+		render_viewport(x2, y1, x3-x2, y2-y1, &nx, &cam.m.v.y, &cam.m.v.w, &cam.m.v.z);
 	}
 
 	SDL_UnlockSurface(screen);
@@ -524,7 +532,7 @@ void render_screen(void)
 		refresh_fps();
 	
 	v4f_t b0, b1;
-	const kd_t *kd = kd_in_tree(kdroot, &cam.o, &b0, &b1);
+	const kd_t *kd = NULL;//kd_in_tree(kdroot, &cam.o, &b0, &b1);
 	if(kd != NULL)
 	{
 		printf("%p: %f %f %f %f -> %f %f %f %f\n",
