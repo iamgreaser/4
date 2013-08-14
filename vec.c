@@ -97,7 +97,7 @@ uint32_t color_vec_sse(__m128 v)
 	return _mm_cvtsi128_si32(vi);
 }
 
-void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy)
+void cam_rotate_by(camera_t *cam, float axz, float ayz, float axw, float ayw, float axy)
 {
 	m4f_t rotmat;
 	float s, c;
@@ -110,7 +110,7 @@ void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy)
 	c = cosf(axy);
 	rotmat.v.z.m = _mm_set_ps(s, c, 0, 0);
 	rotmat.v.w.m = _mm_set_ps(c, -s, 0, 0);
-	mat_mul(&cam.m, &rotmat);
+	mat_mul(&cam->m, &rotmat);
 
 	// rotate around xw
 	mat_ident(&rotmat);
@@ -118,7 +118,7 @@ void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy)
 	c = cosf(axw);
 	rotmat.v.y.m = _mm_set_ps(0, -s, c, 0);
 	rotmat.v.z.m = _mm_set_ps(0, c, s, 0);
-	mat_mul(&cam.m, &rotmat);
+	mat_mul(&cam->m, &rotmat);
 
 	// rotate around yw
 	mat_ident(&rotmat);
@@ -126,7 +126,7 @@ void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy)
 	c = cosf(ayw);
 	rotmat.v.x.m = _mm_set_ps(0, -s, 0, c);
 	rotmat.v.z.m = _mm_set_ps(0, c, 0, s);
-	mat_mul(&cam.m, &rotmat);
+	mat_mul(&cam->m, &rotmat);
 
 	// rotate around xz
 	mat_ident(&rotmat);
@@ -134,7 +134,7 @@ void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy)
 	c = cosf(axz);
 	rotmat.v.y.m = _mm_set_ps(-s, 0, c, 0);
 	rotmat.v.w.m = _mm_set_ps(c, 0, s, 0);
-	mat_mul(&cam.m, &rotmat);
+	mat_mul(&cam->m, &rotmat);
 
 	// rotate around yz
 	mat_ident(&rotmat);
@@ -142,15 +142,15 @@ void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy)
 	c = cosf(ayz);
 	rotmat.v.x.m = _mm_set_ps(s, 0, 0, c);
 	rotmat.v.w.m = _mm_set_ps(c, 0, 0, -s);
-	mat_mul(&cam.m, &rotmat);
+	mat_mul(&cam->m, &rotmat);
 
 	// correct up vector by rotating around zw
 	mat_ident(&rotmat);
-	s = cam.m.v.x.v.y;
+	s = cam->m.v.x.v.y;
 	c = sqrtf(1.0f - s*s);
 	rotmat.v.x.m = _mm_set_ps(0, 0, -s, c);
 	rotmat.v.y.m = _mm_set_ps(0, 0, c, s);
-	mat_mul(&cam.m, &rotmat);
+	mat_mul(&cam->m, &rotmat);
 }
 
 

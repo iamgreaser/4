@@ -80,13 +80,18 @@ float sphere_trace_one(sphere_t *s, const v4f_t *p, const v4f_t *v, float md)
 	v4f_t delta2;
 	delta2.m = _mm_mul_ps(delta, delta);
 
+	// get distance
+	float dd = delta2.v.x + delta2.v.y + delta2.v.z + delta2.v.w;
+	float ddl = sqrtf(dd);
+
+	// cut it short
+	if(ddl - s->r > md)
+		return -1.0f;
+
 	// get dot product for some particular side
 	v4f_t dotb;
 	dotb.m = _mm_mul_ps(delta, v->m);
 	float dotk = dotb.v.x + dotb.v.y + dotb.v.z + dotb.v.w;
-
-	// get distance
-	float dd = delta2.v.x + delta2.v.y + delta2.v.z + delta2.v.w;
 
 	// make sure we're not hitting on the back side of the ray
 	if(dotk <= 0.0f)
@@ -104,7 +109,6 @@ float sphere_trace_one(sphere_t *s, const v4f_t *p, const v4f_t *v, float md)
 	// this is where i use a piece of paper and do weird semi-Euclidean shit.
 	float sh2 = sr2 - cr2;
 	float sh = sqrtf(sh2);
-	float ddl = sqrtf(dd);
 	
 	float bo = ddl-sh;
 

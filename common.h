@@ -179,6 +179,19 @@ struct kd
 	kd_t *adj[8];
 };
 
+typedef struct player
+{
+	camera_t cam;
+	char name[33];
+	int8_t grounded;
+	char pad1[2];
+	float grav_v;
+	char pad2[5];
+	int8_t pid;
+	int8_t team;
+	uint8_t magic; // 0xC4, or 0xC9 if this is the current player
+} __attribute__((__packed__)) player_t;
+
 extern int fps_counter;
 extern int fps_next_tick;
 extern box_t *root;
@@ -190,7 +203,14 @@ extern int rtbuf_height;
 extern int rtbuf_scale;
 extern int quitflag;
 
-extern camera_t cam;
+extern int bseed;
+extern int mbutts;
+extern int mrelease;
+
+// don't reach this unless you're at a lan with a gigabit connection to a switch with a 100 gigabit interconnect
+#define PLAYERS_MAX 128
+extern player_t players[];
+extern int cplr;
 
 // box.c
 float box_volume(box_t *b);
@@ -218,6 +238,9 @@ void kd_accelerate(kd_t *kd);
 box_t *level_load_fp(FILE *fp);
 box_t *level_load_fname(const char *fname);
 
+// render.c
+void render_main(void);
+
 // sphere.c
 sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color);
 void sphere_list_rm(sphere_t *l, int *llen, int idx);
@@ -229,11 +252,14 @@ void vec_norm(v4f_t *v);
 void mat_ident(m4f_t *m);
 void mat_mul(m4f_t *a, m4f_t *b);
 uint32_t color_vec_sse(__m128 v);
-void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy);
+void cam_rotate_by(camera_t *cam, float axz, float ayz, float axw, float ayw, float axy);
 
 // main.c
 void *malloc16(size_t len);
 void *realloc16(void *p, size_t len);
 void free16(void *p);
+void refresh_fps(void);
+float trace_box(box_t *box, const v4f_t *p, const v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md, int *side);
+uint32_t trace_pixel(camera_t *cam, box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, const v4f_t *dirw, int *seed);
 
 
