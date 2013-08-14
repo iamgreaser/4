@@ -30,14 +30,8 @@ distribution.
 sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color)
 {
 	// do reallocation
-	if(l == NULL)
-	{
-		*llen = 1;
-		l = malloc16(sizeof(sphere_t) * 10);
-	} else {
-		(*llen)++;
-		l = realloc16(l, sizeof(sphere_t) * *llen);
-	}
+	(*llen)++;
+	l = realloc16(l, sizeof(sphere_t) * *llen);
 
 	// get current sphere
 	sphere_t *csph = &l[(*llen)-1];

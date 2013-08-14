@@ -34,8 +34,8 @@ int bseed = 1;
 // util functions
 void *align16(void *p, size_t len)
 {
-	char *q = p + sizeof(size_t) + sizeof(int);
-	int offs = 0;
+	int offs = sizeof(size_t) + sizeof(int);
+	char *q = p + offs;
 	while((((long)q) & 15) != 0)
 	{
 		q++;
@@ -43,14 +43,12 @@ void *align16(void *p, size_t len)
 	}
 
 	int *r = (int *)q;
-	r--;
-	*r = offs-4;
+	r[-1] = offs-sizeof(int);
 
-	size_t *s = (size_t *)r;
+	size_t *s = (size_t *)(&r[-1]);
 	s--;
 	*s = len;
 
-	r++;
 	return (void *)r;
 }
 
