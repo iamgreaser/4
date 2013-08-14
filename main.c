@@ -147,6 +147,9 @@ int fps_next_tick = 0;
 box_t *root = NULL;
 kd_t *kdroot = NULL;
 
+sphere_t *sroot = NULL;
+int sroot_len = 0;
+
 SDL_Surface *screen = NULL;
 int rtbuf_width = 320;
 int rtbuf_height = 240;
@@ -314,16 +317,21 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, const v4f_t *p, const
 	int side;
 	int inside;
 	box_t *box = bign;
+	sphere_t *s = NULL;
 
 	if(bouncerem-- <= 0)
 		return;
 
 	v4f_t rcolor;
 	rcolor.m = color->m;
-	float d = trace_box(bstart, p, f, &rcolor, &box, &inside, md, &side);
+	float d1 = trace_box(bstart, p, f, &rcolor, &box, &inside, md, &side);
+	float d2 = sphere_trace(sroot, &sroot_len, p, f, md, &s);
 
-	if(d >= 0.0f)
+	if(d1 >= 0.0f || d2 > 0.00001f)
 	{
+		int use_sphere = (d2 > 0.00001f && (d1 < 0.0f || d2 < d1));
+		float d = (use_sphere ? d2 : d1);
+
 		// move position
 		v4f_t np;
 		np.m = _mm_add_ps(p->m, _mm_mul_ps(
@@ -331,8 +339,15 @@ void trace_main(int bouncerem, box_t *bstart, box_t *bign, const v4f_t *p, const
 
 		// calculate normal
 		v4f_t n;
-		n.m = _mm_setzero_ps();
-		n.a[side&3] = ((side & 4) ? 1.0f : -1.0f) * (inside ? 1.0f : -1.0f);
+		if(use_sphere)
+		{
+			rcolor.m = s->color.m;
+			n.m = _mm_sub_ps(s->v.m, np.m);
+			vec_norm(&n);
+		} else {
+			n.m = _mm_setzero_ps();
+			n.a[side&3] = ((side & 4) ? 1.0f : -1.0f) * (inside ? 1.0f : -1.0f);
+		}
 
 		// calculate diffuse (against one point for now)
 		v4f_t dc;
@@ -575,6 +590,14 @@ void level_init(const char *fname)
 	//kdroot = kd_add_box(kdroot, root);
 	//kd_accelerate(kdroot);
 	//kd_print(kdroot, 0);
+
+	v4f_t v, c;
+	v.m = _mm_set_ps(0,1,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.5f, &c);
+	v.m = _mm_set_ps(0,1.7f,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.3f, &c);
+	v.m = _mm_set_ps(0.5f,1.5f,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
+	v.m = _mm_set_ps(0,1.5f,0,0.5f); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
+	v.m = _mm_set_ps(-0.5f,1.5f,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
+	v.m = _mm_set_ps(0,1.5f,0,-0.5f); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
 }
 
 void render_screen(void)
@@ -696,7 +719,7 @@ void render_main(void)
 			vec_norm(&tv);
 
 			// cast a ray
-			float r = 0.2f;
+			float r = 0.5f;
 			tno.m = cam.o.m;
 			int side;
 

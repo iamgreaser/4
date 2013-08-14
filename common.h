@@ -221,6 +221,8 @@ box_t *level_load_fname(const char *fname);
 // sphere.c
 sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color);
 void sphere_list_rm(sphere_t *l, int *llen, int idx);
+void sphere_normal(const sphere_t *s, const v4f_t *p, v4f_t *normal);
+float sphere_trace(sphere_t *l, const int *llen, const v4f_t *p, const v4f_t *v, float md, sphere_t **rets);
 
 // vec.c
 void vec_norm(v4f_t *v);

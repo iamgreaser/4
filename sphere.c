@@ -68,8 +68,10 @@ void sphere_list_rm(sphere_t *l, int *llen, int idx)
 	(*llen)--;
 }
 
-float sphere_trace_one(sphere_t *s, const v4f_t *p, const v4f_t *v)
+float sphere_trace_one(sphere_t *s, const v4f_t *p, const v4f_t *v, float md)
 {
+	(void)md;
+
 	// based off some code i wrote for iceball
 	// which was based off some math i wrote
 
@@ -107,17 +109,41 @@ float sphere_trace_one(sphere_t *s, const v4f_t *p, const v4f_t *v)
 	float bo = ddl-sh;
 
 	// if this is < 0.0f... well, it doesn't matter.
-	// we don't need to trace the outside.
-
+	// we don't need to trace from within the inside.
+	
 	float d = sqrtf(cr2 + bo*bo);
 
 	return d;
 }
 
-float sphere_trace(sphere_t *l, const int *llen, const v4f_t *p, const v4f_t *v, float md, v4f_t *normal, v4f_t *color)
+void sphere_normal(const sphere_t *s, const v4f_t *p, v4f_t *normal)
 {
-	// TODO!
-	// reminder: cosine rule: c^2 = a^2 + b^2 - 2*a*b*cos(C)
-	return -1.0f;
+	normal->m = _mm_sub_ps(p->m, s->v.m);
+	vec_norm(normal);
+}
+
+float sphere_trace(sphere_t *l, const int *llen, const v4f_t *p, const v4f_t *v, float md, sphere_t **rets)
+{
+	sphere_t *fs = NULL;
+	float fd = -1.0f;
+	int i;
+
+	for(i = 0; i < *llen; i++)
+	{
+		sphere_t *cs = &l[i];
+		float cd = sphere_trace_one(cs, p, v, md);
+
+		if(cd > 0.0f && cd < md && (fd < 0.0f || cd < fd))
+		{
+			fs = cs;
+			fd = cd;
+		}
+	}
+
+	if(fs == NULL)
+		return -1.0f;
+	
+	if(rets != NULL) *rets = fs;
+	return fd;
 }
 
