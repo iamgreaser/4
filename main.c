@@ -31,6 +31,89 @@ distribution.
 
 int bseed = 1;
 
+// util functions
+void *align16(void *p, size_t len)
+{
+	char *q = p + sizeof(size_t) + sizeof(int);
+	int offs = 0;
+	while((((long)q) & 15) != 0)
+	{
+		q++;
+		offs++;
+	}
+
+	int *r = (int *)q;
+	r--;
+	*r = offs-4;
+
+	size_t *s = (size_t *)r;
+	s--;
+	*s = len;
+
+	r++;
+	return (void *)r;
+}
+
+void *unalign16(void *p)
+{
+	int *q = p;
+	q--;
+	char *r = (char *)q;
+	r -= *q;
+	return (void *)r;
+}
+
+size_t getsize16(void *p)
+{
+	char *q = p;
+	q -= sizeof(int) + sizeof(size_t);
+	return *(size_t *)q;
+}
+
+void *malloc16(size_t len)
+{
+	return align16(malloc(len + 16 + 2*sizeof(int)), len);
+}
+
+void free16(void *p)
+{
+	free(unalign16(p));
+}
+
+void *realloc16(void *p, size_t len)
+{
+	// naive method 1: align16(realloc(unalign16(p), len), len) - DOES NOT WORK.
+	// naive method 2 should.
+
+	if(len <= 0)
+	{
+		if(p != NULL)
+			free16(p);
+
+		return NULL;
+	}
+
+	// allocate a little bit more.
+	// just so, y'know, we can be a bit lazy in other places.
+	size_t mlen = len*3/2+1;
+	if(mlen < len) mlen = len;
+
+	if(p == NULL)
+		return malloc16(mlen);
+	
+	// compare lengths; if <= current, don't expand.
+	size_t clen = getsize16(p);
+	if(clen >= len)
+		return p;
+	
+	// malloc, memcpy, free.
+	void *np = malloc16(mlen);
+	memcpy(np, p, clen);
+	free16(p);
+
+	return np;
+}
+
 int myrand(int *seed)
 {
 	int v = (*seed * 1103515245) + 12345;
@@ -672,9 +755,9 @@ void render_main(void)
 				mbutts |= (1<<(ev.button.button-1));
 				if(ev.button.button == 4)
 				{
-					vaxy += 20.0f;
+					vaxy += 40.0f;
 				} else if(ev.button.button == 5) {
-					vaxy -= 20.0f;
+					vaxy -= 40.0f;
 				}
 				break;
 

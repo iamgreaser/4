@@ -85,7 +85,6 @@ struct box
 	box_t *c[2]; // children
 	box_t *p; // parent
 	int op, depth;
-	int ptroffs;
 };
 
 typedef struct sphere
@@ -93,7 +92,6 @@ typedef struct sphere
 	v4f_t v;
 	v4f_t color;
 	float r;
-	int ptroffs; // only necessary for the first of a list but whatever
 } sphere_t;
 
 __attribute__((aligned(16)))
@@ -220,10 +218,20 @@ void kd_accelerate(kd_t *kd);
 box_t *level_load_fp(FILE *fp);
 box_t *level_load_fname(const char *fname);
 
+// sphere.c
+sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color);
+void sphere_list_rm(sphere_t *l, int *llen, int idx);
+
 // vec.c
 void vec_norm(v4f_t *v);
 void mat_ident(m4f_t *m);
 void mat_mul(m4f_t *a, m4f_t *b);
 uint32_t color_vec_sse(__m128 v);
 void cam_rotate_by(float axz, float ayz, float axw, float ayw, float axy);
+
+// main.c
+void *malloc16(size_t len);
+void *realloc16(void *p, size_t len);
+void free16(void *p);
+
 

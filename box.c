@@ -47,9 +47,7 @@ void box_depth_change_up(box_t *b)
 
 void box_free(box_t *b)
 {
-	uint8_t *p = (uint8_t *)b;
-	p -= b->ptroffs;
-	free(b);
+	free16(b);
 }
 
 void box_free_tree(box_t *b)
@@ -65,18 +63,8 @@ void box_free_tree(box_t *b)
 
 box_t *box_new(v4f_t *v0, v4f_t *v1, v4f_t *color, int op)
 {
-	box_t *b = malloc(sizeof(box_t) + 16);
+	box_t *b = malloc16(sizeof(box_t));
 	
-	int ptroffs = 0;
-
-	while((((long)b)&15) != 0)
-	{
-		b = (box_t *)(((uint8_t *)b) + 1);
-		ptroffs++;
-	}
-
-	b->ptroffs = ptroffs;
-
 	b->v0.m = v0->m;
 	b->v1.m = v1->m;
 	if(color != NULL)
