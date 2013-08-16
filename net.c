@@ -55,8 +55,8 @@ void net_player_broadcast(player_t *pl, int feedback)
 		if(pl->magic != 0x4C)
 		{
 			int lmagic = pl->magic;
-			if(i == pl->pid) pl->magic = (pl->magic == 0x66 ? 0x69 : 0xC9);
-			else pl->magic = (pl->magic == 0x69 ? 0x66 : 0xC4);
+			if(i == pl->pid) pl->magic = (pl->magic == 0x66 || pl->magic == 0x69 ? 0x69 : 0xC9);
+			else pl->magic = (pl->magic == 0x69 || pl->magic == 0x66 ? 0x66 : 0xC4);
 			ENetPacket *p = enet_packet_create(pl, sizeof(player_t), ENET_PACKET_FLAG_RELIABLE);
 			pl->magic = lmagic;
 			enet_peer_send(h_player[i], 0, p);
