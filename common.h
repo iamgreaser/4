@@ -197,11 +197,23 @@ typedef struct player
 	uint8_t magic; // 0xC4, or 0xC9 if this is the current player, or 0x4C if not in game, or 0x66 if ingame and dead, or 0x69 if also current player
 } __attribute__((__packed__)) player_t;
 
+// don't reach this unless you're at a lan with a gigabit connection to a switch with a 100 gigabit interconnect
+#define PLAYERS_MAX 128
+
 extern int fps_counter;
 extern int fps_next_tick;
 extern box_t *root;
+extern sphere_t *sroot;
+extern int sroot_len;
 
 extern int net_mode;
+extern ENetHost *h_server;
+extern ENetHost *h_client;
+extern ENetPeer *h_toserver;
+extern ENetPeer *h_player[PLAYERS_MAX];
+
+extern ENetAddress a_server;
+extern ENetAddress a_client;
 
 extern SDL_Surface *screen;
 extern uint32_t *rtbuf;
@@ -214,8 +226,6 @@ extern int bseed;
 extern int mbutts;
 extern int mrelease;
 
-// don't reach this unless you're at a lan with a gigabit connection to a switch with a 100 gigabit interconnect
-#define PLAYERS_MAX 128
 extern player_t players[];
 extern int cplr;
 

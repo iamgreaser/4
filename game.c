@@ -27,6 +27,8 @@ distribution.
 
 #include "common.h"
 
+int last_mbutts = 0;
+
 void game_player_tick(player_t *pl, float dt)
 {
 	if(pl->magic != 0xC4 && pl->magic != 0xC9 && pl->magic != 0x66 && pl->magic != 0x69)
@@ -123,6 +125,47 @@ void game_player_tick(player_t *pl, float dt)
 	}
 }
 
+void game_shoot(player_t *pl)
+{
+	if(pl->magic != 0xC9 && pl->magic != 0xC4)
+		return;
+
+	v4f_t rcolor;
+	box_t *box;
+	sphere_t *s;
+	int side;
+	int inside;
+
+	v4f_t p, f;
+	p.m = pl->cam.o.m;
+	f.m = pl->cam.m.v.z.m;
+
+	float md = 100.0f;
+	box_t *bstart = box_in_tree(root, &p, NULL, 0);
+	if(bstart == NULL) bstart = root;
+
+	float d1 = trace_box(bstart, &p, &f, &rcolor, &box, &inside, md, &side);
+	float d2 = sphere_trace(sroot, &sroot_len, &p, &f, (d1 > 0.0f ? d1 : md), &s);
+
+	if(d1 >= 0.0f || d2 > 0.00001f)
+	{
+		int use_sphere = (d2 > 0.00001f && (d1 < 0.0f || d2 < d1));
+
+		if(use_sphere)
+		{
+			int ptgt = s->plidx;
+			if(ptgt >= 0 && ptgt < PLAYERS_MAX && players[ptgt].magic == 0xC4)
+			{
+				// send kill message
+				char killmsg[2];
+				killmsg[0] = cplr;
+				killmsg[1] = ptgt;
+				enet_peer_send(h_toserver, 0, enet_packet_create(killmsg, 2, ENET_PACKET_FLAG_RELIABLE));
+			}
+		}
+	}
+}
+
 int game_input(player_t *pl, float dt)
 {
 	int quitflag = 0;
@@ -153,6 +196,11 @@ int game_input(player_t *pl, float dt)
 				vaxy += 40.0f;
 			} else if(ev.button.button == 5) {
 				vaxy -= 40.0f;
+			}
+
+			if(ev.button.button == 1)
+			{
+				game_shoot(pl);
 			}
 			break;
 

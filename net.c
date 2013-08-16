@@ -57,7 +57,6 @@ void net_player_broadcast(player_t *pl, int feedback)
 			int lmagic = pl->magic;
 			if(i == pl->pid) pl->magic = (pl->magic == 0x66 ? 0x69 : 0xC9);
 			else pl->magic = (pl->magic == 0x69 ? 0x66 : 0xC4);
-			printf("bc %i %02X %02X\n", i, pl->magic, lmagic);
 			ENetPacket *p = enet_packet_create(pl, sizeof(player_t), ENET_PACKET_FLAG_RELIABLE);
 			pl->magic = lmagic;
 			enet_peer_send(h_player[i], 0, p);
@@ -84,7 +83,12 @@ void net_player_hurt(int pid0, int pid1)
 	if(pid1 >= PLAYERS_MAX)
 		return;
 	
-	// TODO!
+	player_t *pl0 = &players[pid0];
+	player_t *pl1 = &players[pid1];
+
+	printf("pid %i killed %i\n", pid0, pid1);
+	pl1->magic = (pl1->pid == cplr ? 0x69 : 0x66);
+	net_player_broadcast(pl1, 1);
 }
 
 int net_find_player(ENetPeer *p)
@@ -197,6 +201,14 @@ void net_update_client(void)
 		}
 	}
 
+	if(net_send_spawn == -1 && cplr != -1)
+	{
+		if(players[cplr].magic == 0x66 || players[cplr].magic == 0x69)
+		{
+			net_send_spawn = SDL_GetTicks() + 3000;
+		}
+	}
+
 	if(net_send_spawn != -1)
 	{
 		dupd = tupd - net_send_spawn;
@@ -259,7 +271,6 @@ void net_update_server(void)
 				player_t *pl = (player_t *)ev.packet->data;
 				if(pl->pid < PLAYERS_MAX)
 				{
-					printf("Got update %i %i\n", pl->pid, cplr);
 					if(pl->pid != cplr)
 						memcpy(&players[pl->pid], pl, sizeof(player_t));
 					net_player_broadcast(pl, 0);
