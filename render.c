@@ -212,7 +212,7 @@ void render_main(void)
 		for(i = 0; i < PLAYERS_MAX; i++)
 		{
 			player_t *pl = &players[i];
-			if(pl->magic == 0xC4)
+			if(pl->magic == 0xC4 || pl->magic == 0x66)
 				player_sphere_add(pl);
 		}
 

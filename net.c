@@ -67,6 +67,7 @@ void net_player_broadcast(player_t *pl, int feedback)
 void net_player_find_spawn(player_t *pl)
 {
 	// TODO: find a location!
+	pl->cam.o.m = _mm_set_ps(0,0,0,0);
 	pl->magic = (pl->magic == 0x69 ? 0xC9 : 0xC4);
 }
 
