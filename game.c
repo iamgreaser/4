@@ -34,7 +34,7 @@ void game_player_tick(player_t *pl, float dt)
 	
 	camera_t *cam = &(pl->cam);
 
-	float vs = 0.15f*100.0f*dt;
+	float vs = 0.12f*100.0f*dt;
 
 	// trace motion
 	v4f_t no, tno, tv;
@@ -56,10 +56,10 @@ void game_player_tick(player_t *pl, float dt)
 	}
 
 	// add gravity
-	pl->grav_v += 0.30f*vs*vs;
-	if(pl->grav_v > 0.5f)
-		pl->grav_v = 0.5f;
-	no.v.y = pl->grav_v;
+	pl->grav_v += 0.3f*vs;
+	if(pl->grav_v > 2.5f)
+		pl->grav_v = 2.5f;
+	no.v.y = pl->grav_v*vs;
 
 	// check distance
 	v4f_t tv2;
@@ -219,7 +219,7 @@ int game_input(player_t *pl, float dt)
 			case SDLK_SPACE:
 				if(pl->grounded)
 				{
-					pl->grav_v = -0.3f;
+					pl->grav_v = -1.3f;
 					pl->grounded = 0;
 				}
 				break;

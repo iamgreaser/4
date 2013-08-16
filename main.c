@@ -512,6 +512,8 @@ void player_sphere_add(player_t *pl)
 		_mm_mul_ps(pl->cam.m.v.z.m, _mm_set1_ps(0.7f)));
 	sroot = sphere_list_add(sroot, &sroot_len, &(pl->cam.o), 0.5f, &c, pl->pid);
 	sroot = sphere_list_add(sroot, &sroot_len, &front, 0.3f, &c, pl->pid);
+
+	printf("sphere! %i\n", pl->pid);
 }
 
 void level_init(const char *fname)

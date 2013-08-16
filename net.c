@@ -43,7 +43,7 @@ const char *net_fname_map = NULL;
 void net_player_broadcast(player_t *pl, int feedback)
 {
 	int i;
-	
+
 	for(i = 0; i < PLAYERS_MAX; i++)
 	{
 		if(i == cplr || h_player[i] == NULL)
@@ -54,9 +54,12 @@ void net_player_broadcast(player_t *pl, int feedback)
 
 		if(pl->magic != 0x4C)
 		{
+			int lmagic = pl->magic;
 			if(i == pl->pid) pl->magic = (pl->magic == 0x66 ? 0x69 : 0xC9);
+			else pl->magic = (pl->magic == 0x69 ? 0x66 : 0xC4);
+			printf("bc %i %02X %02X\n", i, pl->magic, lmagic);
 			ENetPacket *p = enet_packet_create(pl, sizeof(player_t), ENET_PACKET_FLAG_RELIABLE);
-			if(i == pl->pid) pl->magic = (pl->magic == 0x69 ? 0x66 : 0xC4);
+			pl->magic = lmagic;
 			enet_peer_send(h_player[i], 0, p);
 		}
 	}
@@ -254,9 +257,11 @@ void net_update_server(void)
 			if(ev.packet->dataLength == sizeof(player_t))
 			{
 				player_t *pl = (player_t *)ev.packet->data;
-				if(pl->pid < PLAYERS_MAX && pl->pid != cplr)
+				if(pl->pid < PLAYERS_MAX)
 				{
-					memcpy(&players[pl->pid], pl, sizeof(player_t));
+					printf("Got update %i %i\n", pl->pid, cplr);
+					if(pl->pid != cplr)
+						memcpy(&players[pl->pid], pl, sizeof(player_t));
 					net_player_broadcast(pl, 0);
 				}
 			} else if(ev.packet->dataLength == 2) {

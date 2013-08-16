@@ -278,5 +278,6 @@ void free16(void *p);
 void refresh_fps(void);
 float trace_box(box_t *box, const v4f_t *p, const v4f_t *v, v4f_t *color, box_t **retbox, int *inside, float md, int *side);
 uint32_t trace_pixel(camera_t *cam, box_t *bstart, float sx, float sy, const v4f_t *dirx, const v4f_t *diry, const v4f_t *dirz, const v4f_t *dirw, int *seed);
-
+void player_sphere_clear(void);
+void player_sphere_add(player_t *pl);
 
