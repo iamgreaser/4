@@ -42,6 +42,8 @@ distribution.
 
 #include <math.h>
 
+#include <enet/enet.h>
+
 #include <SDL.h>
 
 #ifndef __SSE2__
@@ -190,14 +192,16 @@ typedef struct player
 	char pad1[1];
 	float grav_v;
 	char pad2[5];
-	int8_t pid;
+	uint8_t pid;
 	int8_t team;
-	uint8_t magic; // 0xC4, or 0xC9 if this is the current player, or 0x4C if not in game
+	uint8_t magic; // 0xC4, or 0xC9 if this is the current player, or 0x4C if not in game, or 0x66 if ingame and dead, or 0x69 if also current player
 } __attribute__((__packed__)) player_t;
 
 extern int fps_counter;
 extern int fps_next_tick;
 extern box_t *root;
+
+extern int net_mode;
 
 extern SDL_Surface *screen;
 extern uint32_t *rtbuf;
@@ -244,6 +248,12 @@ void kd_accelerate(kd_t *kd);
 // level.c
 box_t *level_load_fp(FILE *fp);
 box_t *level_load_fname(const char *fname);
+
+// net.c
+char *net_new_client(const char *shost, const char *sport, int toourselves);
+void net_new_server(const char *sport, const char *fname);
+void net_update_client(void);
+void net_update_server(void);
 
 // render.c
 void render_main(void);

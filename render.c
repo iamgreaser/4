@@ -27,6 +27,8 @@ distribution.
 
 #include "common.h"
 
+int last_tick = 0;
+
 void render_viewport(camera_t *cam, int vx, int vy, int w, int h, v4f_t *dx, v4f_t *dy, v4f_t *dz, v4f_t *dw)
 {
 	int y;
@@ -190,7 +192,8 @@ void render_main(void)
 	fps_next_tick = SDL_GetTicks() + 1000;
 
 	quitflag = 0;
-	float dt = 0.01f;
+	float dt = 0.00f;
+	last_tick = SDL_GetTicks();
 	while(!quitflag)
 	{
 		player_t *pl = &players[cplr >= 0 ? cplr : 127];
@@ -198,10 +201,19 @@ void render_main(void)
 
 		render_screen(cam);
 
+		if(net_mode == 1)
+			net_update_client();
+		else if(net_mode == 3)
+			net_update_server();
+
 		quitflag = quitflag || game_input(pl, dt);
 		
 		for(i = 0; i < PLAYERS_MAX; i++)
 			game_player_tick(&players[i], dt);
+
+		int next_tick = SDL_GetTicks();
+		dt = ((float)(next_tick - last_tick))/1000.0f;
+		last_tick = next_tick;
 	}
 }
 

@@ -29,27 +29,30 @@ distribution.
 
 void game_player_tick(player_t *pl, float dt)
 {
-	if(pl->magic != 0xC4 && pl->magic != 0xC9)
+	if(pl->magic != 0xC4 && pl->magic != 0xC9 && pl->magic != 0x66 && pl->magic != 0x69)
 		return;
 	
 	camera_t *cam = &(pl->cam);
 
-	float vs = 0.2f*100.0f*dt;
+	float vs = 0.15f*100.0f*dt;
 
 	// trace motion
 	v4f_t no, tno, tv;
 	no.m = _mm_setzero_ps();
-	if(pl->vflip)
+	if(pl->magic != 0x66 && pl->magic != 0x69)
 	{
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.x.m, _mm_set1_ps(-pl->lv.v.x*vs)));
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.y.m, _mm_set1_ps(pl->lv.v.y*vs)));
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.z.m, _mm_set1_ps(pl->lv.v.w*vs)));
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.w.m, _mm_set1_ps(pl->lv.v.z*vs)));
-	} else {
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.x.m, _mm_set1_ps(pl->lv.v.x*vs)));
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.y.m, _mm_set1_ps(pl->lv.v.y*vs)));
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.z.m, _mm_set1_ps(pl->lv.v.z*vs)));
-		no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.w.m, _mm_set1_ps(pl->lv.v.w*vs)));
+		if(pl->vflip)
+		{
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.x.m, _mm_set1_ps(-pl->lv.v.x*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.y.m, _mm_set1_ps(pl->lv.v.y*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.z.m, _mm_set1_ps(pl->lv.v.w*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.w.m, _mm_set1_ps(pl->lv.v.z*vs)));
+		} else {
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.x.m, _mm_set1_ps(pl->lv.v.x*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.y.m, _mm_set1_ps(pl->lv.v.y*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.z.m, _mm_set1_ps(pl->lv.v.z*vs)));
+			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.w.m, _mm_set1_ps(pl->lv.v.w*vs)));
+		}
 	}
 
 	// add gravity

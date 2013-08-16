@@ -29,6 +29,10 @@ distribution.
 
 #define MAX_BOX 10000
 
+int net_mode = 0;
+const char *net_str_addr = NULL;
+const char *net_str_port = NULL;
+
 int bseed = 1;
 
 // util functions
@@ -154,7 +158,7 @@ int rtbuf_scale = 3;
 int quitflag = 0;
 
 player_t players[PLAYERS_MAX];
-int cplr = 0;
+int cplr = -1;
 
 void refresh_fps(void)
 {
@@ -496,11 +500,13 @@ void player_sphere_clear(void)
 
 void player_sphere_add(player_t *pl)
 {
-	if(pl == NULL || pl->magic != 0xC4)
+	if(pl == NULL || (pl->magic != 0xC4 && pl->magic != 0x66))
 		return;
 	
 	v4f_t c, front;
-	c.m = _mm_set_ps(1, 1, 0, 1);
+	c.m = (pl->magic == 0x66
+		? _mm_set_ps(1, 1, 0, 0)
+		: _mm_set_ps(1, 1, 1, 1));
 
 	front.m = _mm_add_ps(pl->cam.o.m,
 		_mm_mul_ps(pl->cam.m.v.z.m, _mm_set1_ps(0.7f)));
@@ -516,25 +522,67 @@ void level_init(const char *fname)
 	//kd_print(kdroot, 0);
 }
 
+void player_init(player_t *pl, int pid)
+{
+	pl->lv.m = _mm_set1_ps(0);
+	pl->grounded = 0;
+	pl->vflip = 0;
+	pl->grav_v = 0.0f;
+	pl->pid = pid;
+	pl->team = -1; // teams not supported yet sorry!
+	pl->magic = 0x4C;
+}
+
 int main(int argc, char *argv[])
 {
-	const char *fname;
-	if(argc <= 1)
+	const char *fname = NULL;
+	int i;
+
+	if(argc <= 3 || (argc > 1 && (strcmp(argv[1], "-s") && strcmp(argv[1], "-c"))))
 	{
-		printf("%s dat/shortcut.4lv (or something like that).\n", argv[0]);
-		fname = "dat/shortcut.4lv";
+		printf("usage:\n"
+			"\t%s -c address port   <-- for clients\n"
+			"\t%s -s port map       <-- for servers\n"
+			"\n"
+			"e.g. %s -s 14444 dat/shortcut.4lv\n"
+			, argv[0], argv[0], argv[0]);
+
+		return 99;
 	} else {
-		fname = argv[1];
+		if(!strcmp(argv[1], "-c"))
+		{
+			net_str_addr = argv[2];
+			net_str_port = argv[3];
+			net_mode = 1;
+		} else if(!strcmp(argv[1], "-s")) {
+			net_str_port = argv[2];
+			fname = argv[3];
+			net_mode = 3;
+		} else {
+			fprintf(stderr, "EDOOFUS: SHOULD NEVER REACH HERE\n");
+		}
 	}
 
-	SDL_Init(SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO);
+	// should check return code, cbf right now
+	enet_initialize();
+	atexit(enet_deinitialize);
+
+	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO);
 	SDL_WM_SetCaption("4 (pronounced \"sardinelauncher\")", NULL);
 	screen = SDL_SetVideoMode(rtbuf_width * rtbuf_scale, rtbuf_height * rtbuf_scale, 32, 0);
 
+	for(i = 0; i < PLAYERS_MAX; i++)
+		player_init(&players[i], i);
+
+	if(net_mode == 1)
+		fname = net_new_client(net_str_addr, net_str_port, 0);
+	else if(net_mode == 3)
+		net_new_server(net_str_port, fname);
+	else
+		abort();
+
 	cam_init();
 	level_init(fname);
-
-	players[cplr].magic = 0xC9;
 
 	SDL_WM_GrabInput(1);
 	SDL_ShowCursor(0);
