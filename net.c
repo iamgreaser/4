@@ -46,7 +46,7 @@ void net_player_broadcast(player_t *pl, int feedback)
 
 	for(i = 0; i < PLAYERS_MAX; i++)
 	{
-		if(i == cplr || h_player[i] == NULL)
+		if(h_player[i] == NULL)
 			continue;
 
 		if(i == pl->pid && !feedback)
