@@ -1,11 +1,11 @@
 
 BINNAME = 4
 
-OBJS = box.o game.o kd.o level.o render.o sphere.o vec.o main.o
+OBJS = box.o game.o kd.o level.o net.o render.o sphere.o vec.o main.o
 INCLUDES = common.h
 
 SDL_CF = `sdl-config --cflags` 
-LIBS = -lm `sdl-config --libs` 
+LIBS = -lm `sdl-config --libs` xlibinc/libenet.a
 CFLAGS = -fopenmp -g -fno-strict-aliasing -Wall -O2 -msse2 -mfpmath=sse $(SDL_CF) $(CFLAGS_EXTRA)
 LDFLAGS = -fopenmp -g -Wall $(LIBS) $(LDFLAGS_EXTRA)
 
