@@ -27,7 +27,7 @@ distribution.
 
 #include "common.h"
 
-sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color)
+sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color, int plidx)
 {
 	// do reallocation
 	(*llen)++;
@@ -39,6 +39,7 @@ sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const
 	// fill it in
 	csph->v.m = v->m;
 	csph->r = r;
+	csph->plidx = plidx;
 	csph->color.m = color->m;
 
 	// return our new list

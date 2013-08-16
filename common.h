@@ -92,6 +92,7 @@ typedef struct sphere
 	v4f_t v;
 	v4f_t color;
 	float r;
+	int plidx;
 } sphere_t;
 
 __attribute__((aligned(16)))
@@ -182,14 +183,16 @@ struct kd
 typedef struct player
 {
 	camera_t cam;
+	v4f_t lv;
 	char name[33];
-	int8_t grounded;
-	char pad1[2];
+	uint8_t grounded;
+	uint8_t vflip;
+	char pad1[1];
 	float grav_v;
 	char pad2[5];
 	int8_t pid;
 	int8_t team;
-	uint8_t magic; // 0xC4, or 0xC9 if this is the current player
+	uint8_t magic; // 0xC4, or 0xC9 if this is the current player, or 0x4C if not in game
 } __attribute__((__packed__)) player_t;
 
 extern int fps_counter;
@@ -226,6 +229,10 @@ box_t *box_in_tree(box_t *box, const v4f_t *p, box_t **ignore, int ignore_count)
 void box_normal(box_t *box, v4f_t *p, v4f_t *n, int inside);
 float box_crosses(const box_t *box, const v4f_t *p, const v4f_t *vi, int *inside, int *side);
 
+// game.c
+void game_player_tick(player_t *pl, float dt);
+int game_input(player_t *pl, float dt);
+
 // kd.c
 void kd_free(kd_t *kd);
 void kd_free_down(kd_t *kd);
@@ -242,7 +249,7 @@ box_t *level_load_fname(const char *fname);
 void render_main(void);
 
 // sphere.c
-sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color);
+sphere_t *sphere_list_add(sphere_t *l, int *llen, const v4f_t *v, float r, const v4f_t *color, int plidx);
 void sphere_list_rm(sphere_t *l, int *llen, int idx);
 void sphere_normal(const sphere_t *s, const v4f_t *p, v4f_t *normal);
 float sphere_trace(sphere_t *l, const int *llen, const v4f_t *p, const v4f_t *v, float md, sphere_t **rets);

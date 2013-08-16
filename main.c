@@ -134,7 +134,6 @@ __m128 myrand_sse_mul(int *seed, float mul)
 }
 
 // TODO: move these two to the camera (well, a player entity, that is)
-float grav_v = 0.0f;
 int grounded = 0;
 
 int mbutts = 0;
@@ -490,20 +489,31 @@ void cam_init(void)
 	}
 }
 
+void player_sphere_clear(void)
+{
+	sroot_len = 0;
+}
+
+void player_sphere_add(player_t *pl)
+{
+	if(pl == NULL || pl->magic != 0xC4)
+		return;
+	
+	v4f_t c, front;
+	c.m = _mm_set_ps(1, 1, 0, 1);
+
+	front.m = _mm_add_ps(pl->cam.o.m,
+		_mm_mul_ps(pl->cam.m.v.z.m, _mm_set1_ps(0.7f)));
+	sroot = sphere_list_add(sroot, &sroot_len, &(pl->cam.o), 0.5f, &c, pl->pid);
+	sroot = sphere_list_add(sroot, &sroot_len, &front, 0.3f, &c, pl->pid);
+}
+
 void level_init(const char *fname)
 {
 	root = level_load_fname(fname);
 	//kdroot = kd_add_box(kdroot, root);
 	//kd_accelerate(kdroot);
 	//kd_print(kdroot, 0);
-
-	v4f_t v, c;
-	v.m = _mm_set_ps(0,1,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.5f, &c);
-	v.m = _mm_set_ps(0,1.7f,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.3f, &c);
-	v.m = _mm_set_ps(0.5f,1.5f,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
-	v.m = _mm_set_ps(0,1.5f,0,0.5f); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
-	v.m = _mm_set_ps(-0.5f,1.5f,0,0); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
-	v.m = _mm_set_ps(0,1.5f,0,-0.5f); c.m = _mm_set_ps(1,1,0,1); sroot = sphere_list_add(sroot, &sroot_len, &v, 0.2f, &c);
 }
 
 int main(int argc, char *argv[])
@@ -523,6 +533,8 @@ int main(int argc, char *argv[])
 
 	cam_init();
 	level_init(fname);
+
+	players[cplr].magic = 0xC9;
 
 	SDL_WM_GrabInput(1);
 	SDL_ShowCursor(0);

@@ -184,229 +184,24 @@ void render_screen(camera_t *cam)
 
 void render_main(void)
 {
-	player_t *pl = &players[cplr >= 0 ? cplr : 127];
-	camera_t *cam = &(pl->cam);
+	int i;
+
 	fps_counter = 0;
 	fps_next_tick = SDL_GetTicks() + 1000;
 
-	SDL_Event ev;
-
 	quitflag = 0;
-	float vaxz = 0.0f;
-	float vayz = 0.0f;
-	float vaxw = 0.0f;
-	float vayw = 0.0f;
-	float vaxy = 0.0f;
-	float vx = 0.0f;
-	float vy = 0.0f;
-	float vz = 0.0f;
-	float vw = 0.0f;
+	float dt = 0.01f;
 	while(!quitflag)
 	{
+		player_t *pl = &players[cplr >= 0 ? cplr : 127];
+		camera_t *cam = &(pl->cam);
+
 		render_screen(cam);
 
-		const float vas = 0.002f;
-		cam_rotate_by(cam, vaxz*vas, vayz*vas, vaxw*vas, vayw*vas, vaxy*vas);
-		vaxz = vayz = vaxw = vayw = vaxy = 0.0f;
-
-		const float vs = 0.2f;
-
-		// trace motion
-		v4f_t no, tno, tv;
-		no.m = _mm_setzero_ps();
-		if(mbutts & 4)
-		{
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.x.m, _mm_set1_ps(-vx*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.y.m, _mm_set1_ps(vy*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.z.m, _mm_set1_ps(vw*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.w.m, _mm_set1_ps(vz*vs)));
-		} else {
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.x.m, _mm_set1_ps(vx*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.y.m, _mm_set1_ps(vy*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.z.m, _mm_set1_ps(vz*vs)));
-			no.m = _mm_add_ps(no.m, _mm_mul_ps(cam->m.v.w.m, _mm_set1_ps(vw*vs)));
-		}
-
-		// add gravity
-		pl->grav_v += 0.30f*vs*vs;
-		if(pl->grav_v > 0.5f)
-			pl->grav_v = 0.5f;
-		no.v.y = pl->grav_v;
-
-		// check distance
-		v4f_t tv2;
-		tv2.m = _mm_mul_ps(no.m, no.m);
-		//float md = sqrtf(vx*vx + vy*vy + vz*vz + vw*vw)*vs;
-		float md = tv2.v.x + tv2.v.y + tv2.v.z + tv2.v.w;
-
-		if(md > 0.0000001f)
-		{
-			// normalise for direction
-			tv.m = no.m;
-			vec_norm(&tv);
-
-			// cast a ray
-			float r = 0.5f;
-			tno.m = cam->o.m;
-			int side;
-
-			// trace away
-			for(;;)
-			{
-				float d = trace_box(root, &tno, &tv, NULL, NULL, NULL, md + r, &side);
-				
-				//
-				// apply collision
-				//
-
-				if(d < 0.0f)
-				{
-					// no collision. jump to point.
-					cam->o.m = _mm_add_ps(cam->o.m,
-						_mm_mul_ps(_mm_set1_ps(md), tv.m));
-
-					break;
-				} else {
-					// we've hit a plane. slide back.
-					if(side == F_YP)
-					{
-						if(pl->grav_v >= 0.0f)
-						{
-							pl->grav_v = 0.0f;
-							pl->grounded = 1;
-						}
-					} else if(side == F_YN) {
-						if(pl->grav_v <= 0.0f)
-							pl->grav_v = 0.0f;
-					}
-
-					float dd = md - (d - r);
-
-					cam->o.m = _mm_add_ps(cam->o.m,
-						_mm_mul_ps(_mm_set1_ps(md - dd), tv.m));
-
-					// mask out velocity.
-					tv.a[side&3] = 0.0f;
-
-					// reduce distance.
-					md = dd;
-				}
-			}
-		}
-
-		while(SDL_PollEvent(&ev))
-		switch(ev.type)
-		{
-			case SDL_QUIT:
-				quitflag = 1;
-				break;
-
-			case SDL_MOUSEBUTTONDOWN:
-				mbutts |= (1<<(ev.button.button-1));
-				if(ev.button.button == 4)
-				{
-					vaxy += 40.0f;
-				} else if(ev.button.button == 5) {
-					vaxy -= 40.0f;
-				}
-				break;
-
-			case SDL_MOUSEBUTTONUP:
-				mbutts &= ~(1<<(ev.button.button-1));
-				break;
-
-			case SDL_MOUSEMOTION:
-				if(mrelease)
-					break;
-				if(mbutts & 4)
-				{
-					vayz += ev.motion.xrel;
-					vaxz += ev.motion.yrel;
-				} else {
-					vayw += ev.motion.xrel;
-					vaxw += ev.motion.yrel;
-				}
-				break;
-
-			case SDL_KEYUP:
-			switch(ev.key.keysym.sym)
-			{
-				case SDLK_w:
-				case SDLK_s:
-					vz = 0.0f;
-					break;
-				case SDLK_a:
-				case SDLK_d:
-					vx = 0.0f;
-					break;
-				case SDLK_q:
-				case SDLK_e:
-					vw = 0.0f;
-					break;
-				case SDLK_f:
-				case SDLK_r:
-					vy = 0.0f;
-					break;
-
-				default:
-					break;
-			} break;
-
-			case SDL_KEYDOWN:
-			switch(ev.key.keysym.sym)
-			{
-				case SDLK_ESCAPE:
-					quitflag = 1;
-					break;
-
-				case SDLK_F5:
-					if(mrelease)
-					{
-						SDL_WM_GrabInput(1);
-						SDL_ShowCursor(0);
-					} else {
-						SDL_ShowCursor(1);
-						SDL_WM_GrabInput(0);
-					}
-					mrelease = !mrelease;
-					break;
-
-				case SDLK_SPACE:
-					if(pl->grounded)
-					{
-						pl->grav_v = -0.3f;
-						pl->grounded = 0;
-					}
-					break;
-				case SDLK_s:
-					vz = -1.0f;
-					break;
-				case SDLK_a:
-					vx = -1.0f;
-					break;
-				case SDLK_q:
-					vw = -1.0f;
-					break;
-				case SDLK_r:
-					vy = -1.0f;
-					break;
-				case SDLK_w:
-					vz = +1.0f;
-					break;
-				case SDLK_d:
-					vx = +1.0f;
-					break;
-				case SDLK_e:
-					vw = +1.0f;
-					break;
-				case SDLK_f:
-					vy = +1.0f;
-					break;
-				
-				default:
-					break;
-			} break;
-		}
+		quitflag = quitflag || game_input(pl, dt);
+		
+		for(i = 0; i < PLAYERS_MAX; i++)
+			game_player_tick(&players[i], dt);
 	}
 }
 
