@@ -520,6 +520,8 @@ void level_init(const char *fname)
 	//kdroot = kd_add_box(kdroot, root);
 	//kd_accelerate(kdroot);
 	//kd_print(kdroot, 0);
+	box_print(root, 0);
+	fflush(stdout);
 }
 
 void player_init(player_t *pl, int pid)

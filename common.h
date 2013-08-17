@@ -46,6 +46,13 @@ distribution.
 
 #include <SDL.h>
 
+#ifdef WIN32
+#ifdef stderr
+#undef stderr
+#endif
+#define stderr stdout
+#endif
+
 #ifndef __SSE2__
 #error "SSE2 is required to compile + run this. Use the -msse2 flag in GCC."
 #endif
